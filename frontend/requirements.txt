@@ -1,0 +1,2 @@
+# Phase 0 — Streamlit only for bootstrap
+streamlit>=1.29.0
