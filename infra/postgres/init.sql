@@ -4,7 +4,7 @@ CREATE EXTENSION IF NOT EXISTS vector;
 CREATE TABLE documents (
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     content     TEXT NOT NULL,
-    embedding   VECTOR(1536),          -- 768 for nomic, 1536 for OpenAI
+    embedding   VECTOR(768),           -- 768 for nomic-embed-text (Ollama); increase to 1536 for OpenAI if needed
     category    VARCHAR(100),
     source_id   VARCHAR(200),
     metadata    JSONB,
