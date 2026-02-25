@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...agent import graph as agent_graph
 from ...agent.state import AgentState
+from ...config import debug_print
 from ...db.models import Message, Session
 from ...db.postgres import get_session
 from ...db.redis_client import get_client as get_redis_client
@@ -106,6 +107,14 @@ async def _run_agent_flow(
     try:
         session = await _get_or_create_session(db, req.session_id, req.user_id)
 
+        debug_print(
+            "chat",
+            "request",
+            session_id=str(session.id),
+            user_id=req.user_id,
+            message_len=len(req.message),
+        )
+
         user_msg = Message(
             session_id=session.id,
             role="user",
@@ -133,6 +142,8 @@ async def _run_agent_flow(
                 cached_payload = _local_chat_cache.get(cache_key)
                 cache_hit = cached_payload is not None
 
+        debug_print("chat", "cache", cache_hit=cache_hit)
+
         if cache_hit and cached_payload is not None:
             assistant_content = cached_payload.get("response", "")
             assistant_msg = Message(
@@ -147,8 +158,10 @@ async def _run_agent_flow(
             except Exception:
                 pass
             resp = ChatResponse(**cached_payload)
+            debug_print("chat", "returning cached response")
             return resp
 
+        debug_print("chat", "agent start")
         history = await _load_message_history(db, session_id=session.id)
         history.append(
             {
@@ -168,6 +181,14 @@ async def _run_agent_flow(
         else:
             final_state = run_result
         response_text = final_state.get("final_response") or ""
+
+        debug_print(
+            "chat",
+            "agent end",
+            response_len=len(response_text),
+            sources_count=len(final_state.get("retrieved_docs") or []),
+            tools_count=len(final_state.get("tool_results") or []),
+        )
 
         assistant_msg = Message(
             session_id=session.id,
@@ -200,6 +221,14 @@ async def _run_agent_flow(
                 # Fallback to local in-memory cache when Redis is not available.
                 _local_chat_cache[cache_key] = payload
 
+        debug_print(
+            "chat",
+            "response",
+            session_id=str(session.id),
+            sources=len(sources),
+            tools_used=tools_used,
+            escalated=bool(final_state.get("should_escalate", False)),
+        )
         resp = ChatResponse(**payload)
         return resp
     finally:

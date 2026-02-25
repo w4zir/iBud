@@ -3,6 +3,22 @@
 import os
 
 
+def is_debug() -> bool:
+    """Return True if DEBUG env is set to a truthy value (true, 1, yes). Default: False."""
+    raw = (os.getenv("DEBUG") or "").strip().lower()
+    return raw in ("true", "1", "yes")
+
+
+def debug_print(tag: str, message: str, **kwargs: object) -> None:
+    """Print to stdout only when DEBUG is enabled. Use tag e.g. 'chat' or 'agent'."""
+    if not is_debug():
+        return
+    parts = [f"[DEBUG][{tag}]", message]
+    if kwargs:
+        parts.append(" ".join(f"{k}={v!r}" for k, v in kwargs.items()))
+    print(" ".join(parts))
+
+
 def get_embedding_dim() -> int:
     """Return embedding dimension; must match VECTOR(n) in schema. Default 768 (Ollama)."""
     return int(os.getenv("EMBEDDING_DIM", "768"))

@@ -47,6 +47,8 @@ The primary workflow uses Docker Compose for infrastructure (Postgres, Redis, Ol
    - `REDIS_PORT=6379`
    - `REDIS_CACHE_TTL=300` (seconds)
 
+   **Backend debug logging:** Set `DEBUG=true` in `.env` to print minimal flow logs to the backend console (e.g. `[DEBUG][chat]` and `[DEBUG][agent]`). Logs include request/session metadata, cache hit/miss, agent stage names, and tool name + parameters only. Default is `false`; leave unset or `false` in production.
+
 ## 2. Start Docker services
 
 You can start different slices of the system depending on what you are working on.
