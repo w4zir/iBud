@@ -188,10 +188,10 @@ async def plan_action(state: AgentState) -> AgentState:
 
 
 async def execute_tool(state: AgentState) -> AgentState:
-    tool_calls = state.get("tool_calls") or []
+    calls = state.get("tool_calls") or []
     results: List[ToolResult] = []
 
-    for call in tool_calls:
+    for call in calls:
         name = call.get("name")
         args = call.get("arguments", {})
         try:

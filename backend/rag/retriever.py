@@ -4,7 +4,7 @@ import time
 from dataclasses import asdict, dataclass
 from typing import Any, Dict, List, Optional
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ..config import get_embedding_model
@@ -106,7 +106,7 @@ class Retriever:
         category: Optional[str],
         tier_filter: Optional[int],
     ) -> List[RetrievedDoc]:
-        distance = func.cosine_distance(Document.embedding, query_vector)
+        distance = Document.embedding.cosine_distance(query_vector)
         stmt = select(
             Document,
             distance.label("score"),

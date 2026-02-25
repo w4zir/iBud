@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 from typing import Any, Dict, List
 
+import pandas as pd
+
 from evaluation import ragas_eval
 
 
@@ -13,32 +15,6 @@ class DummyResult:
 
     def to_pandas(self):
         return self._df
-
-
-class DummyDataFrame:
-    def __init__(self, rows: List[Dict[str, Any]]):
-        self._rows = rows
-
-    def __len__(self):
-        return len(self._rows)
-
-    @property
-    def columns(self):
-        return self._rows[0].keys() if self._rows else []
-
-    def __getitem__(self, key):
-        return [row[key] for row in self._rows]
-
-    def mean(self):
-        # Not used directly; we call mean per column below.
-        raise NotImplementedError
-
-    def unique(self):
-        # Only used for split column.
-        return list({row["split"] for row in self._rows})
-
-    def __eq__(self, other):
-        return False
 
 
 def test_run_ragas_eval_writes_summary(tmp_path, monkeypatch):
@@ -69,7 +45,7 @@ def test_run_ragas_eval_writes_summary(tmp_path, monkeypatch):
         }
 
     def fake_evaluate(dataset, metrics, show_progress=True):
-        df = DummyDataFrame(
+        df = pd.DataFrame(
             [
                 {
                     "faithfulness": 0.9,

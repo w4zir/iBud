@@ -39,7 +39,7 @@ async def test_retriever_observes_cache_hits_and_latency(monkeypatch):
     monkeypatch.setattr("backend.rag.retriever.get_cached", fake_get_cached)
     monkeypatch.setattr("backend.rag.retriever.set_cached", AsyncMock())
     monkeypatch.setattr("backend.rag.retriever.retrieval_latency", fake_latency)
-    monkeypatch.setattr("backend.observability.prometheus_metrics.cache_hits", fake_cache_hits)
+    monkeypatch.setattr("backend.rag.retriever.cache_hits", fake_cache_hits)
 
     retriever = Retriever(embedding_client=DummyEmbeddingClient())  # type: ignore[arg-type]
 
@@ -49,8 +49,8 @@ async def test_retriever_observes_cache_hits_and_latency(monkeypatch):
     # Assert
     assert docs and docs[0].content == "cached-doc"
     fake_cache_hits.inc.assert_called_once()
-    # Even for cache hits we still record latency once per call.
-    fake_latency.observe.assert_called_once()
+    # Latency is only observed on cache miss (when we do DB + optional rerank).
+    fake_latency.observe.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -81,7 +81,7 @@ async def test_tool_calls_counter_incremented(monkeypatch):
         fake_tool,
     )
     monkeypatch.setattr(
-        "backend.observability.prometheus_metrics.tool_calls",
+        "backend.agent.nodes.tool_calls",
         fake_counter,
     )
 
