@@ -24,7 +24,7 @@ from typing import Any, Dict, List
 import httpx
 from datasets import Dataset
 from ragas import evaluate
-from ragas.metrics import (
+from ragas.metrics.collections import (
     answer_relevancy,
     context_precision,
     context_recall,
@@ -57,7 +57,8 @@ def _run_backend_calls(
     ground_truths: List[List[str]] = []
     splits: List[str] = []
 
-    with httpx.Client(timeout=30.0) as client:
+    # Chat endpoint can be slow (RAG + LLM); use a long timeout per request.
+    with httpx.Client(timeout=180.0) as client:
         for row in rows:
             q = row.get("question") or ""
             if not q.strip():

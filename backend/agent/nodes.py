@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from typing import Any, Dict, List
 
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -53,6 +54,57 @@ def _record_llm_tokens(response: Any) -> None:
     except Exception:
         # Metrics must never break the agent path.
         return
+
+
+def _parse_planner_tool_calls(raw: str) -> List[Dict[str, Any]]:
+    """
+    Parse the planner LLM output into a list of tool-call dicts.
+    Tries direct JSON first; if the model returns prose + markdown code block,
+    extracts and parses the JSON from the code block or from the first [...] array.
+    """
+    text = (raw or "").strip()
+    # 1) Direct JSON
+    try:
+        parsed = json.loads(text)
+        if isinstance(parsed, list):
+            return [x for x in parsed if isinstance(x, dict)]
+        if isinstance(parsed, dict):
+            return [parsed]
+        return []
+    except (json.JSONDecodeError, TypeError):
+        pass
+
+    # 2) Markdown code block: ```json ... ``` or ``` ... ```
+    code_block = re.search(r"```(?:json)?\s*\n([\s\S]*?)```", text)
+    if code_block:
+        try:
+            parsed = json.loads(code_block.group(1).strip())
+            if isinstance(parsed, list):
+                return [x for x in parsed if isinstance(x, dict)]
+            if isinstance(parsed, dict):
+                return [parsed]
+            return []
+        except (json.JSONDecodeError, TypeError):
+            pass
+
+    # 3) First top-level JSON array [...]
+    start = text.find("[")
+    if start != -1:
+        depth = 0
+        for i in range(start, len(text)):
+            if text[i] == "[":
+                depth += 1
+            elif text[i] == "]":
+                depth -= 1
+                if depth == 0:
+                    try:
+                        parsed = json.loads(text[start : i + 1])
+                        if isinstance(parsed, list):
+                            return [x for x in parsed if isinstance(x, dict)]
+                    except (json.JSONDecodeError, TypeError):
+                        break
+                    break
+    return []
 
 
 async def classify_intent(state: AgentState) -> AgentState:
@@ -161,26 +213,17 @@ async def plan_action(state: AgentState) -> AgentState:
     raw = (resp.content or "").strip()
 
     tool_calls: List[ToolCall] = []
-    try:
-        parsed = json.loads(raw)
-        if isinstance(parsed, dict):
-            parsed = [parsed]
-        if isinstance(parsed, list):
-            for item in parsed:
-                if not isinstance(item, dict):
-                    continue
-                name = str(item.get("name") or "").strip()
-                args = item.get("arguments") or {}
-                if not name:
-                    continue
-                tool_calls.append(
-                    ToolCall(
-                        name=name,
-                        arguments=dict(args),
-                    )
-                )
-    except Exception:
-        tool_calls = []
+    for item in _parse_planner_tool_calls(raw):
+        name = str(item.get("name") or "").strip()
+        args = item.get("arguments") or {}
+        if not name:
+            continue
+        tool_calls.append(
+            ToolCall(
+                name=name,
+                arguments=dict(args),
+            )
+        )
 
     next_state: AgentState = dict(state)
     next_state["tool_calls"] = tool_calls
