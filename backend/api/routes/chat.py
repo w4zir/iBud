@@ -114,6 +114,10 @@ async def _run_agent_flow(
         db.add(user_msg)
         await db.flush()
 
+        # Commit so the session (and user message) are visible to tools that use
+        # a separate DB connection (e.g. ticket_create_tool) during the agent run.
+        await db.commit()
+
         cache_hit = False
         cached_payload: Optional[Dict[str, Any]] = None
         cache_key = _build_chat_cache_key(str(session.id), req.user_id, req.message)

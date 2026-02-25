@@ -246,12 +246,12 @@ async def execute_tool(state: AgentState) -> AgentState:
             if name == "order_lookup":
                 result = await order_lookup_tool(
                     order_number=args.get("order_number"),
-                    user_id=args.get("user_id"),
+                    user_id=args.get("user_id") or state.get("user_id"),
                 )
             elif name == "return_initiate":
                 result = await return_initiate_tool(
                     order_number=args.get("order_number"),
-                    user_id=args.get("user_id"),
+                    user_id=args.get("user_id") or state.get("user_id"),
                 )
             elif name == "faq_search":
                 result = await faq_search_tool(
