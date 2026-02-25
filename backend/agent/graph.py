@@ -5,6 +5,7 @@ from typing import Any, Dict
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, StateGraph
 
+from ..observability.langsmith_tracer import build_run_config
 from .nodes import (
     check_escalation,
     classify_intent,
@@ -85,11 +86,13 @@ def get_agent_graph():
 async def run_agent(state: AgentState, *, thread_id: str | None = None) -> AgentState:
     """
     Convenience wrapper to run the compiled graph asynchronously.
+
+    When LangSmith tracing is enabled via environment variables, this
+    attaches per-run metadata so that each execution appears as a
+    structured trace in the LangSmith UI.
     """
     graph = get_agent_graph()
-    config: Dict[str, Any] = {}
-    if thread_id:
-        config["configurable"] = {"thread_id": thread_id}
+    config: Dict[str, Any] = build_run_config(state, thread_id=thread_id)
     result = await graph.ainvoke(state, config=config)
     return result
 

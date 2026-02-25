@@ -10,19 +10,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..config import get_embedding_model
 from ..db.models import Document
 from ..db.postgres import async_session_factory
-from .embeddings import EmbeddingClient
 from ..db.redis_client import CacheKeyParts, build_cache_key, get_cached, set_cached
-
-
-try:  # pragma: no cover - optional dependency path
-    from prometheus_client import Histogram
-
-    retrieval_latency_seconds = Histogram(
-        "retrieval_latency_seconds",
-        "RAG retrieval latency in seconds",
-    )
-except Exception:  # pragma: no cover - metrics optional
-    retrieval_latency_seconds = None  # type: ignore[assignment]
+from ..observability.prometheus_metrics import cache_hits, retrieval_latency
+from .embeddings import EmbeddingClient
 
 
 @dataclass
@@ -73,6 +63,10 @@ class Retriever:
             cache_key = build_cache_key(parts)
             cached = await get_cached(cache_key)
             if cached is not None:
+                try:
+                    cache_hits.inc()
+                except Exception:  # pragma: no cover - defensive
+                    pass
                 return [RetrievedDoc(**item) for item in cached]  # type: ignore[arg-type]
 
         start_time = time.perf_counter()
@@ -93,11 +87,10 @@ class Retriever:
             docs = await self._rerank(query, docs)
 
         latency = time.perf_counter() - start_time
-        if retrieval_latency_seconds is not None:
-            try:
-                retrieval_latency_seconds.observe(latency)
-            except Exception:  # pragma: no cover - defensive
-                pass
+        try:
+            retrieval_latency.observe(latency)
+        except Exception:  # pragma: no cover - defensive
+            pass
 
         if cache_key and use_cache and docs:
             serializable = [asdict(d) for d in docs]

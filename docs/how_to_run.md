@@ -1,8 +1,8 @@
 ## Overview
 
-This document explains how to bring up the stack with Docker services, ingest the **WixQA** KB corpus into pgvector, seed mock orders, run the agentic backend API (Phases 3–4), and use the Streamlit UI (Phase 5). It also links to the use-case testing guide.
+This document explains how to bring up the stack with Docker services, ingest the **WixQA** KB corpus into pgvector, seed mock orders, run the agentic backend API (Phases 3–4), use the Streamlit UI (Phase 5), and enable observability and evaluation (Phase 6).
 
-The primary workflow uses Docker Compose for infrastructure (Postgres, Redis, Ollama, backend, frontend) and a local Python virtual environment for management commands and tests.
+The primary workflow uses Docker Compose for infrastructure (Postgres, Redis, Ollama, backend, frontend, Prometheus, Grafana) and a local Python virtual environment for management commands and tests.
 
 ## Prerequisites
 
@@ -49,10 +49,40 @@ The primary workflow uses Docker Compose for infrastructure (Postgres, Redis, Ol
 
 ## 2. Start Docker services
 
-From the project root, start all core services, including the backend API and Streamlit frontend:
+You can start different slices of the system depending on what you are working on.
+
+### 2.1 Core data infra only (Postgres + Redis)
+
+```powershell
+docker compose up -d postgres redis
+```
+
+### 2.2 Backend API only (requires data infra + Ollama)
+
+```powershell
+docker compose up -d postgres redis ollama backend
+```
+
+Backend API will be available at `http://localhost:8000`.
+
+### 2.3 Frontend only (requires backend)
+
+```powershell
+docker compose up -d backend frontend
+```
+
+Streamlit UI will be available at `http://localhost:8501`.
+
+### 2.4 Full stack (backend + frontend + infra)
 
 ```powershell
 docker compose up -d postgres redis ollama backend frontend
+```
+
+### 2.5 Full stack with observability
+
+```powershell
+docker compose up -d postgres redis ollama backend frontend prometheus grafana
 ```
 
 Verify services:
@@ -61,7 +91,7 @@ Verify services:
 docker compose ps
 ```
 
-You should see `postgres`, `redis`, `ollama`, `backend`, and `frontend` in `Up` state.
+You should see at least `postgres`, `redis`, `ollama`, `backend`, and `frontend` in `Up` state; for observability, also `prometheus` and `grafana`.
 
 ## 3. Prepare Ollama models (for embeddings)
 
@@ -110,11 +140,31 @@ bash scripts/ingest_wixqa.sh
 
 > If you see errors about `set` or `$'\r'`, use UNIX line endings (e.g. `dos2unix scripts/ingest_wixqa.sh`).
 
-## 6. Run use-case tests
+## 6. Run automated tests
 
-For detailed testing flows focused on end-to-end use cases (agent + API), see `docs/how_to_test.md`.
+All test commands assume you are in the project root with the virtual environment activated (`.\venv\Scripts\activate`) so that the `backend` package is importable.
 
-At a glance, once Docker services are running and data is ingested/seeded:
+### 6.1 Unit / fast tests (default)
+
+```powershell
+.\venv\Scripts\python -m pytest
+```
+
+This runs fast unit tests only (integration tests are deselected by default via `pytest.ini`).
+
+### 6.2 Integration tests (require running services)
+
+After starting Postgres/Redis and performing ingestion and seeding:
+
+```powershell
+.\venv\Scripts\python -m pytest -m integration
+```
+
+Integration tests cover vector queries, retrieval quality, and other flows that depend on live data.
+
+### 6.3 API-level use-case tests
+
+With Docker services running and data ingested/seeded:
 
 ```powershell
 .\venv\Scripts\python -m pytest tests/test_use_cases.py
@@ -122,10 +172,54 @@ At a glance, once Docker services are running and data is ingested/seeded:
 
 This exercises the `/chat` API and session history using a stubbed agent, validating session creation, caching behaviour, and history retrieval.
 
-## 7. Quick verification checklist
+## 7. Observability & evaluation
+
+### 7.1 Prometheus & Grafana
+
+- Prometheus is configured to scrape `backend:8000/metrics` inside the Docker network (see `infra/prometheus/prometheus.yml`).
+- Grafana can import the dashboard JSON at `infra/grafana/dashboards/phase6-observability.json` to visualise:
+  - Chat request rate and latency
+  - Retrieval latency
+  - Redis cache hits
+  - Tool calls
+  - Escalations
+  - LLM tokens by provider
+
+### 7.2 LangSmith tracing
+
+To enable LangSmith traces for every agent run, set in `.env`:
+
+- `LANGCHAIN_TRACING_V2=true`
+- `LANGCHAIN_API_KEY=ls__...`
+- `LANGCHAIN_PROJECT=ecom-support-rag`
+
+With these set, `backend/agent/graph.py` attaches metadata and tags per run so traces appear in the LangSmith UI.
+
+### 7.3 RAGAS evaluation
+
+1. Build the WixQA evaluation testset:
+
+   ```powershell
+   .\venv\Scripts\python -m evaluation.build_wixqa_testset
+   ```
+
+2. Ensure the backend is running locally (for example via full stack Docker compose).
+
+3. Run the RAGAS evaluation:
+
+   ```powershell
+   .\venv\Scripts\python -m evaluation.ragas_eval --backend-url http://localhost:8000 --limit 50
+   ```
+
+Results are written under `evaluation/results/` as `run_<timestamp>.json`, including overall metric means and per-split breakdowns.
+
+## 8. Quick verification checklist
 
 - **Core services**: `docker compose up -d` and `docker compose ps` show `postgres`, `redis`, `ollama`, `backend`, and `frontend` as `Up`.
 - **Ingestion**: `docker compose exec -T backend python -m backend.rag.ingest_wixqa` completes with a non-zero document count.
 - **Seeding**: `docker compose exec -T backend python /app/scripts/seed_mock_data.py` completes with a non-zero orders count.
 - **Agent API**: `curl http://localhost:8000/health` returns a JSON object with `status`, `postgres`, `redis`, and `ollama` fields.
 - **UI**: navigate to `http://localhost:8501` and send a chat message; you should receive a model response and (when available) sources/tool activity.
+- **Metrics**: Prometheus shows `backend` target as `UP` and `/metrics` exposes Phase 6 counters/histograms.
+- **Traces**: with LangSmith env vars set, new chats appear as traces in the LangSmith project.
+- **Evaluation**: RAGAS run completes and writes a `run_<timestamp>.json` summary under `evaluation/results/`.

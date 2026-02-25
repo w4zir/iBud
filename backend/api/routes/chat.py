@@ -16,7 +16,7 @@ from ...agent.state import AgentState
 from ...db.models import Message, Session
 from ...db.postgres import get_session
 from ...db.redis_client import get_client as get_redis_client
-from ...observability.prometheus_metrics import request_count, request_latency
+from ...observability.prometheus_metrics import cache_hits, request_count, request_latency
 from ..models import ChatRequest, ChatResponse, Source
 
 
@@ -138,6 +138,10 @@ async def _run_agent_flow(
             )
             db.add(assistant_msg)
             await db.commit()
+            try:
+                cache_hits.inc()
+            except Exception:
+                pass
             resp = ChatResponse(**cached_payload)
             return resp
 

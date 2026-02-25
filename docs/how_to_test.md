@@ -1,6 +1,12 @@
-## Use-Case Testing Guide
+## Testing Guide
 
-This document focuses on **use-case tests**: end-to-end scenarios that exercise the agent, API, and persistence through realistic workflows such as chatting via `/chat` and inspecting session history.
+This document describes how to test the system across different layers:
+
+- Unit tests (functions, components)
+- Integration tests (database, retrieval)
+- API-level use-case tests (end-to-end flows)
+- Observability checks (metrics, traces)
+- RAG quality evaluation (RAGAS)
 
 All examples assume a PowerShell shell on Windows from the project root.
 
@@ -13,13 +19,44 @@ All examples assume a PowerShell shell on Windows from the project root.
   .\venv\Scripts\python -m pip install -r backend\requirements.txt
   ```
 
-- Docker services up (at least `postgres`, `redis`, `ollama`, `backend`)
-- WixQA KB ingested into Postgres
-- Mock orders seeded
+- Docker services up when running integration or API-level tests (see `docs/how_to_run.md`).
+- WixQA KB ingested and mock orders seeded for retrieval- and order-related tests.
 
-Use `docs/how_to_run.md` for the exact commands to start services and perform ingestion/seeding.
+## 2. Unit tests (fast feedback)
 
-## 2. Automated use-case tests (API-level)
+Unit tests live throughout `tests/` and cover:
+
+- RAG components (`tests/test_retriever.py`, `tests/test_chunker.py`, `tests/test_ingest_transform.py`)
+- Redis caching helpers (`tests/test_redis_client.py`)
+- Seed scripts (`tests/test_seed_mock_data.py`)
+- Phase 6 observability and tracing (`tests/test_langsmith_tracing.py`, `tests/test_observability_metrics.py`)
+- Evaluation utilities (`tests/test_build_wixqa_testset.py`, `tests/test_ragas_eval.py`)
+
+Run all unit tests (integration tests are excluded by default via `pytest.ini`):
+
+```powershell
+.\venv\Scripts\python -m pytest
+```
+
+## 3. Integration tests (live data)
+
+Integration tests are marked with `@pytest.mark.integration` and assume:
+
+- Postgres and Redis are running
+- WixQA corpus is ingested into pgvector
+
+Examples include:
+
+- `tests/test_vector_query_smoke.py`
+- `evaluation/test_retrieval_quality.py`
+
+Run integration tests explicitly:
+
+```powershell
+.\venv\Scripts\python -m pytest -m integration
+```
+
+## 4. API-level use-case tests
 
 Automated use-case tests are implemented in `tests/test_use_cases.py`. They drive the FastAPI app directly and validate:
 
@@ -27,7 +64,7 @@ Automated use-case tests are implemented in `tests/test_use_cases.py`. They driv
 - Request-level Redis caching for identical queries in the same session
 - Session history retrieval via `GET /sessions/{session_id}/history`
 
-### Run all use-case tests
+Run them with:
 
 ```powershell
 .\venv\Scripts\python -m pytest tests/test_use_cases.py
@@ -35,11 +72,11 @@ Automated use-case tests are implemented in `tests/test_use_cases.py`. They driv
 
 These tests stub the underlying agent graph (`run_agent`) to avoid external LLM calls while still exercising the API surface and database interactions.
 
-## 3. Manual end-to-end scenarios
+## 5. Manual end-to-end scenarios
 
 In addition to automated checks, you can manually validate key user journeys once the backend and frontend are running.
 
-### 3.1 Chat via Streamlit UI
+### 5.1 Chat via Streamlit UI
 
 1. Ensure Docker services are running (including `backend` and `frontend`).
 2. Open the Streamlit UI at `http://localhost:8501`.
@@ -55,7 +92,7 @@ In addition to automated checks, you can manually validate key user journeys onc
    - When applicable, a “Tools used” line indicates which tools were called.
    - When the agent escalates, a banner indicates a ticket was created and shows the ticket ID.
 
-### 3.2 Chat via HTTP API
+### 5.2 Chat via HTTP API
 
 You can also call the API directly using `curl` or `Invoke-RestMethod`.
 
@@ -73,7 +110,7 @@ The response includes:
 - `tools_used` — list of tool names invoked.
 - `escalated` / `ticket_id` — escalation status.
 
-### 3.3 Inspect session history
+### 5.3 Inspect session history
 
 Given a `session_id` from a chat response, fetch the full message history:
 
@@ -83,11 +120,92 @@ curl http://localhost:8000/sessions/<session_id>/history
 
 You should see a chronological list of `{role, content, created_at}` entries for the session.
 
-## 4. Troubleshooting use-case tests
+## 6. Observability checks
+
+### 6.1 Prometheus metrics
+
+1. Start Prometheus and backend:
+
+   ```powershell
+   docker compose up -d backend prometheus
+   ```
+
+2. Hit the metrics endpoint directly:
+
+   ```powershell
+   curl http://localhost:8000/metrics
+   ```
+
+   You should see:
+
+   - `chat_requests_total`
+   - `chat_latency_seconds_*` buckets
+   - `retrieval_latency_seconds_*` buckets
+   - `redis_cache_hits_total`
+   - `agent_tool_calls_total`
+   - `escalations_total`
+   - `llm_tokens_total`
+
+3. Open the Prometheus UI (default `http://localhost:9090`) and verify that the `backend` target is `UP`.
+
+### 6.2 Grafana dashboard
+
+1. Start Grafana alongside Prometheus:
+
+   ```powershell
+   docker compose up -d prometheus grafana
+   ```
+
+2. Log into Grafana (default `http://localhost:3000`).
+3. Import the dashboard JSON from `infra/grafana/dashboards/phase6-observability.json`.
+4. Verify panels update as you send chat traffic:
+   - Chat rate and latency
+   - Retrieval latency
+   - Cache hits
+   - Tool calls
+   - Escalations
+   - LLM tokens by provider
+
+### 6.3 LangSmith traces
+
+1. Set the following in `.env`:
+
+   - `LANGCHAIN_TRACING_V2=true`
+   - `LANGCHAIN_API_KEY=ls__...`
+   - `LANGCHAIN_PROJECT=ecom-support-rag`
+
+2. Restart the backend so it picks up the new environment.
+3. Send one or more chat requests (via UI or API).
+4. In the LangSmith UI, confirm that new traces appear with metadata such as `session_id`, `user_id`, and `intent` attached.
+
+## 7. RAG quality evaluation (RAGAS)
+
+1. Ensure WixQA KB is ingested and backend is running.
+2. Build the WixQA testset:
+
+   ```powershell
+   .\venv\Scripts\python -m evaluation.build_wixqa_testset
+   ```
+
+3. Run the RAGAS evaluation:
+
+   ```powershell
+   .\venv\Scripts\python -m evaluation.ragas_eval --backend-url http://localhost:8000 --limit 50
+   ```
+
+4. Inspect the summary JSON written under `evaluation/results/` (e.g. `run_<timestamp>.json`) to view:
+
+   - Overall scores for `faithfulness`, `answer_relevancy`, `context_precision`, `context_recall`
+   - Per-split breakdown for ExpertWritten vs Simulated questions
+
+## 8. Troubleshooting
 
 - **API not reachable (`connection refused`)**
   - Ensure `docker compose ps` shows `backend` as `Up`.
   - Confirm you are calling `http://localhost:8000` (or your configured host/port).
+
+- **Tests failing with `ModuleNotFoundError: No module named 'backend'`**
+  - Make sure you run `pytest` from the project root (`d:\ai_ws\projects\iBud`) with the virtual environment activated so `backend` is on `PYTHONPATH`.
 
 - **Use-case tests failing due to database errors**
   - Verify Postgres is running and accessible from the host.

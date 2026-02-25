@@ -24,6 +24,7 @@ langsmith
 # Testing
 pytest
 pytest-asyncio
+ragas
 
 # LLM providers used by backend/config.py
 langchain-openai

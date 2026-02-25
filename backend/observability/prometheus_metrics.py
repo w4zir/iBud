@@ -10,12 +10,12 @@ request_count = Counter(
 
 request_latency = Histogram(
     "chat_latency_seconds",
-    "Request latency",
+    "Request latency in seconds",
 )
 
 retrieval_latency = Histogram(
-    "retrieval_latency_seconds_backend",
-    "RAG retrieval latency",
+    "retrieval_latency_seconds",
+    "RAG retrieval latency in seconds",
 )
 
 cache_hits = Counter(

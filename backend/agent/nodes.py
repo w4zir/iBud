@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import json
+import os
 from typing import Any, Dict, List
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from ..config import get_llm
+from ..observability.prometheus_metrics import escalations, llm_tokens, tool_calls
 from ..rag.retriever import RetrievedDoc, Retriever
 from ..tools.faq_search import faq_search_tool
 from ..tools.order_lookup import order_lookup_tool
@@ -28,6 +30,31 @@ def _get_latest_user_message(state: AgentState) -> str:
     return ""
 
 
+def _record_llm_tokens(response: Any) -> None:
+    """
+    Best-effort extraction of token usage from LangChain chat responses.
+
+    Different providers expose slightly different metadata keys; this
+    helper normalises the most common shapes and records total tokens
+    against the configured LLM_PROVIDER.
+    """
+    try:  # pragma: no cover - defensive metrics path
+        provider = os.getenv("LLM_PROVIDER", "ollama")
+        metadata = getattr(response, "response_metadata", None) or {}
+        usage = metadata.get("token_usage") or metadata.get("usage") or {}
+
+        prompt_tokens = usage.get("prompt_tokens") or usage.get("input_tokens") or 0
+        completion_tokens = usage.get("completion_tokens") or usage.get("output_tokens") or 0
+        total = usage.get("total_tokens") or (prompt_tokens + completion_tokens)
+
+        total_int = int(total) if total else 0
+        if total_int > 0:
+            llm_tokens.labels(provider=provider).inc(total_int)
+    except Exception:
+        # Metrics must never break the agent path.
+        return
+
+
 async def classify_intent(state: AgentState) -> AgentState:
     llm = get_llm()
     user_text = _get_latest_user_message(state)
@@ -36,6 +63,7 @@ async def classify_intent(state: AgentState) -> AgentState:
         HumanMessage(content=user_text),
     ]
     resp = await llm.ainvoke(messages)
+    _record_llm_tokens(resp)
     raw = (resp.content or "").strip().lower()
 
     intent: Intent
@@ -129,6 +157,7 @@ async def plan_action(state: AgentState) -> AgentState:
 
     messages = [SystemMessage(content=SYSTEM_PLANNER), HumanMessage(content=prompt)]
     resp = await llm.ainvoke(messages)
+    _record_llm_tokens(resp)
     raw = (resp.content or "").strip()
 
     tool_calls: List[ToolCall] = []
@@ -166,6 +195,11 @@ async def execute_tool(state: AgentState) -> AgentState:
         name = call.get("name")
         args = call.get("arguments", {})
         try:
+            if name:
+                try:
+                    tool_calls.labels(tool_name=name).inc()
+                except Exception:
+                    pass
             if name == "order_lookup":
                 result = await order_lookup_tool(
                     order_number=args.get("order_number"),
@@ -245,6 +279,7 @@ async def synthesize_response(state: AgentState) -> AgentState:
 
     messages = [SystemMessage(content=system), HumanMessage(content=user_prompt)]
     resp = await llm.ainvoke(messages)
+    _record_llm_tokens(resp)
     answer = (resp.content or "").strip()
 
     next_state: AgentState = dict(state)
@@ -272,6 +307,7 @@ async def check_escalation(state: AgentState) -> AgentState:
         )
         messages = [SystemMessage(content=system), HumanMessage(content=human)]
         resp = await llm.ainvoke(messages)
+        _record_llm_tokens(resp)
         raw = (resp.content or "").strip().lower()
         should = "true" in raw
 
@@ -298,6 +334,10 @@ async def create_ticket(state: AgentState) -> AgentState:
     ticket_id = result.get("ticket_id")
     if ticket_id:
         next_state["ticket_id"] = str(ticket_id)
+        try:
+            escalations.inc()
+        except Exception:
+            pass
 
     tool_results = list(next_state.get("tool_results") or [])
     tool_results.append(
