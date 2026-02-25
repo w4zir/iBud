@@ -3,6 +3,11 @@
 import os
 
 
+def get_embedding_dim() -> int:
+    """Return embedding dimension; must match VECTOR(n) in schema. Default 768 (Ollama)."""
+    return int(os.getenv("EMBEDDING_DIM", "768"))
+
+
 def get_llm():
     provider = os.getenv("LLM_PROVIDER", "ollama")
     match provider:

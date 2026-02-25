@@ -3,18 +3,8 @@ from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import (
-    JSON,
-    Column,
-    DateTime,
-    Enum,
-    ForeignKey,
-    Numeric,
-    String,
-    Text,
-    func,
-)
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy import DateTime, ForeignKey, Integer, Numeric, String, Text, func, text
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -26,11 +16,19 @@ class Document(Base):
     __tablename__ = "documents"
 
     id: Mapped[str] = mapped_column(
-        String,
+        UUID(as_uuid=False),
         primary_key=True,
+        server_default=text("gen_random_uuid()"),
     )
     content: Mapped[str] = mapped_column(Text, nullable=False)
-    embedding: Mapped[List[float]] = mapped_column(Vector(768))
+    parent_id: Mapped[Optional[str]] = mapped_column(
+        UUID(as_uuid=False),
+        ForeignKey("documents.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    embedding: Mapped[Optional[List[float]]] = mapped_column(Vector(768), nullable=True)
+    source: Mapped[Optional[str]] = mapped_column(String(50))
+    doc_tier: Mapped[int] = mapped_column(Integer, default=1)
     category: Mapped[Optional[str]] = mapped_column(String(100))
     source_id: Mapped[Optional[str]] = mapped_column(String(200))
     metadata_: Mapped[Optional[Dict[str, Any]]] = mapped_column(
@@ -47,8 +45,9 @@ class Session(Base):
     __tablename__ = "sessions"
 
     id: Mapped[str] = mapped_column(
-        String,
+        UUID(as_uuid=False),
         primary_key=True,
+        server_default=text("gen_random_uuid()"),
     )
     user_id: Mapped[Optional[str]] = mapped_column(String(100))
     created_at: Mapped[datetime] = mapped_column(
@@ -71,11 +70,12 @@ class Message(Base):
     __tablename__ = "messages"
 
     id: Mapped[str] = mapped_column(
-        String,
+        UUID(as_uuid=False),
         primary_key=True,
+        server_default=text("gen_random_uuid()"),
     )
     session_id: Mapped[str] = mapped_column(
-        String,
+        UUID(as_uuid=False),
         ForeignKey("sessions.id", ondelete="CASCADE"),
         nullable=False,
     )
@@ -97,8 +97,9 @@ class Order(Base):
     __tablename__ = "orders"
 
     id: Mapped[str] = mapped_column(
-        String,
+        UUID(as_uuid=False),
         primary_key=True,
+        server_default=text("gen_random_uuid()"),
     )
     order_number: Mapped[str] = mapped_column(String(50), unique=True, nullable=False)
     user_id: Mapped[Optional[str]] = mapped_column(String(100))
@@ -119,11 +120,12 @@ class Ticket(Base):
     __tablename__ = "tickets"
 
     id: Mapped[str] = mapped_column(
-        String,
+        UUID(as_uuid=False),
         primary_key=True,
+        server_default=text("gen_random_uuid()"),
     )
     session_id: Mapped[Optional[str]] = mapped_column(
-        String,
+        UUID(as_uuid=False),
         ForeignKey("sessions.id", ondelete="SET NULL"),
     )
     issue_type: Mapped[Optional[str]] = mapped_column(String(100))

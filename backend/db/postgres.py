@@ -16,7 +16,14 @@ def _build_database_url() -> str:
 
     user = os.getenv("POSTGRES_USER", "admin")
     password = os.getenv("POSTGRES_PASSWORD", "changeme")
+
+    # Default to the Docker service hostname when running in containers,
+    # but transparently talk to the published port on the host when running
+    # tools/tests outside Docker (no /.dockerenv present).
     host = os.getenv("POSTGRES_HOST", "postgres")
+    if host == "postgres" and not os.path.exists("/.dockerenv"):
+        host = "localhost"
+
     port = os.getenv("POSTGRES_PORT", "5432")
     db = os.getenv("POSTGRES_DB", "ecom_support")
 

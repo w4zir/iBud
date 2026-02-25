@@ -1,26 +1,26 @@
 ## Overview
 
-This document explains how to bring up the Phase 1 data/storage stack, ingest the HuggingFace dataset into pgvector, seed mock orders, and run the Phase 1 tests.
+This document explains how to bring up the Phase 0/1/2 stack (Docker services), ingest the **WixQA** KB corpus into pgvector, seed mock orders, enable the RAG retriever with Redis caching, and run the test suite.
 
-The primary workflow uses Docker Compose for infrastructure (Postgres, Redis, Ollama, backend) and a local Python virtual environment for running management commands and tests.
+The primary workflow uses Docker Compose for infrastructure (Postgres, Redis, Ollama, backend) and a local Python virtual environment for management commands and tests.
 
 ## Prerequisites
 
 - Docker and Docker Compose v2 (`docker compose` CLI)
-- Python 3.11 on your host
-- A virtual environment created at `venv/` in the project root
-- Network access to download Python packages, HuggingFace datasets, and Ollama models
+- Python 3.11+ on your host
+- A virtual environment at `venv/` in the project root
+- Network access for Python packages, HuggingFace datasets, and Ollama models
 
 ## 1. Environment setup
 
-1. From the project root (`d:\ai_ws\projects\iBud`), create or activate a virtual environment (if not already done):
+1. From the project root, create or activate a virtual environment:
 
    ```powershell
    python -m venv venv
    .\venv\Scripts\activate
    ```
 
-2. Install backend dependencies (including LangChain, pgvector, asyncpg, Ollama/OpenAI clients, and pytest):
+2. Install backend dependencies:
 
    ```powershell
    .\venv\Scripts\python -m pip install -r backend\requirements.txt
@@ -32,14 +32,22 @@ The primary workflow uses Docker Compose for infrastructure (Postgres, Redis, Ol
    copy .env.example .env
    ```
 
-   Then edit `.env` as needed. For Phase 1 with Ollama embeddings:
+   For Phase 1/2 with Ollama embeddings, set in `.env`:
 
    - `EMBEDDING_PROVIDER=ollama`
    - `EMBEDDING_MODEL_OLLAMA=nomic-embed-text`
+   - `EMBEDDING_DIM=768`
+   - `HF_DATASET_PRIMARY=Wix/WixQA`
    - `POSTGRES_DB=ecom_support`
    - `POSTGRES_USER` / `POSTGRES_PASSWORD` as desired
 
-## 2. Start Docker services
+   For Phase 2 Redis-backed retrieval, also configure:
+
+   - `REDIS_HOST=redis`
+   - `REDIS_PORT=6379`
+   - `REDIS_CACHE_TTL=300` (seconds)
+
+## 2. Start Docker services (Phase 0)
 
 From the project root:
 
@@ -47,109 +55,89 @@ From the project root:
 docker compose up -d postgres redis ollama backend
 ```
 
-You can verify services are running with:
+Verify services:
 
 ```powershell
 docker compose ps
 ```
 
-You should see at least `postgres`, `redis`, `ollama`, and `backend` in `Up` state.
+You should see `postgres`, `redis`, `ollama`, and `backend` in `Up` state.
 
 ## 3. Prepare Ollama models (for embeddings)
 
-Inside the Ollama container, pull the required models:
+Inside the Ollama container:
 
 ```powershell
 docker compose exec ollama ollama pull llama3.2
 docker compose exec ollama ollama pull nomic-embed-text
 ```
 
-This may take several minutes on first run.
+## 4. Ingest WixQA KB into pgvector
 
-## 4. Ingest dataset into pgvector
-
-Run the ingestion pipeline inside the backend container:
+Run the **WixQA** ingestion pipeline inside the backend container:
 
 ```powershell
-docker compose exec -T backend python -m rag.ingest
+docker compose exec -T backend python -m backend.rag.ingest_wixqa
 ```
 
-What this does:
+This:
 
-- Loads the HuggingFace dataset (`rjac/e-commerce-customer-support-qa` by default)
-- Maps rows to `Q:/A:` text plus metadata
-- Chunks documents (`chunk_size=500`, `chunk_overlap=50`)
-- Calls the embedding model (Ollama by default) to generate 768‑dim embeddings
-- Upserts into the `documents` table with pgvector `VECTOR(768)`
+- Loads the HuggingFace dataset `Wix/WixQA` (config `wix_kb_corpus`)
+- Extracts article fields (`id`, `url`, `contents`, `article_type`)
+- Chunks with section-aware and parent-document logic (chunk size ~400 tokens, overlap 50)
+- Embeds child chunks (Ollama `nomic-embed-text`, 768-dim by default)
+- Inserts parent and child rows into `documents` with `source="wixqa"`, `doc_tier=1`
 
-On success you’ll see a summary line like:
+On success you’ll see a line like:
 
 ```text
-Ingestion complete. documents count=<N>
+WixQA ingestion complete. documents (source=wixqa) count=<N> ...
 ```
 
 ## 5. Seed mock orders
 
-The mock order seeding script lives at `scripts/seed_mock_data.py` and is mounted into the backend container.
-
-Run it inside the backend container:
+Run seeding inside the backend container:
 
 ```powershell
 docker compose exec -T backend python /app/scripts/seed_mock_data.py
 ```
 
-This will:
-
-- Insert (or re-use) 50 mock orders into the `orders` table
-- Ensure all four statuses are represented: `processing`, `in-transit`, `delivered`, `returned`
-- Print a final count:
-
-```text
-Seeded mock orders. orders count=<N>
-```
-
-You can also use the orchestration script (from a bash-capable shell such as Git Bash or WSL) to run ingestion + seed in one go:
+Or run ingestion and seeding in one go (bash-capable shell):
 
 ```bash
-bash scripts/ingest_data.sh
+bash scripts/ingest_wixqa.sh
 ```
 
-> Note: If you see errors about `set` or `$'\r'`, ensure the script has UNIX line endings (e.g. run `dos2unix scripts/ingest_data.sh`).
+> If you see errors about `set` or `$'\r'`, use UNIX line endings (e.g. `dos2unix scripts/ingest_wixqa.sh`).
 
-## 6. Run Phase 1 tests
+## 6. Run tests
 
-Tests are run from the host using the local virtual environment, connecting to the Postgres container via the published port.
+For detailed testing flows (unit, integration, and evaluation/quality tests for the retriever and Redis cache), see `docs/how_to_test.md`.
 
-1. Ensure the virtual environment is active:
+At a glance:
 
-   ```powershell
-   .\venv\Scripts\activate
-   ```
+- **Default (unit / mocked, no Postgres or Ollama required):**
 
-2. Override `POSTGRES_HOST` so the test code connects to the dockerized Postgres via `localhost`:
+  ```powershell
+  .\venv\Scripts\python -m pytest tests/
+  ```
 
-   ```powershell
-   $env:POSTGRES_HOST = "localhost"
-   ```
+- **With Postgres/Redis (integration tests):**
 
-3. Run the focused Phase 1 tests:
+  1. Set `POSTGRES_HOST=localhost` so the host can reach the containerized Postgres.
+  2. Ensure `docker compose up -d postgres redis ollama backend` is running.
+  3. Run integration tests only (includes seeding and retrieval quality checks):
 
-   ```powershell
-   .\venv\Scripts\python -m pytest tests/test_seed_mock_data.py tests/test_ingest_transform.py tests/test_vector_query_smoke.py -q
-   ```
-
-   - `test_seed_mock_data.py` validates that seeding creates at least 50 orders, includes all statuses, and keeps `order_number` unique.
-   - `test_ingest_transform.py` checks the dataset row → document mapping and chunking behavior.
-   - `test_vector_query_smoke.py` (after ingestion) runs a simple pgvector similarity query using an embedded query vector to ensure the end‑to‑end path works.
+     ```powershell
+     $env:POSTGRES_HOST = "localhost"
+     .\venv\Scripts\python -m pytest tests/ -m "integration"
+     ```
 
 ## 7. Quick verification checklist
 
-After completing the steps above, you should be able to confirm:
+- **Phase 0**: `docker compose up -d` and `docker compose ps` show all services `Up`.
+- **Ingestion**: `docker compose exec -T backend python -m backend.rag.ingest_wixqa` completes with a non-zero document count.
+- **Seeding**: `docker compose exec -T backend python /app/scripts/seed_mock_data.py` completes with a non-zero orders count.
+- **Phase 2 retrieval**: with services up and data ingested, `pytest evaluation/test_retrieval_quality.py -m "integration"` passes.
 
-- **Docker services**: `docker compose ps` shows `postgres`, `redis`, `ollama`, and `backend` as `Up`.
-- **Ingestion**: `docker compose exec -T backend python -m rag.ingest` completes and prints a non‑zero `documents count`.
-- **Seeding**: `docker compose exec -T backend python /app/scripts/seed_mock_data.py` completes and prints a non‑zero `orders count`.
-- **Tests**: The pytest command exits with status 0 and reports all selected tests as passed.
-
-At this point, Phase 1 (data and storage foundation) is complete and ready to be used by later RAG and agent phases.
-
+Phase 0, Phase 1 (WixQA data and storage foundation), and Phase 2 (RAG core with Redis caching) are then ready for later RAG and agent phases.

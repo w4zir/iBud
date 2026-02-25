@@ -4,8 +4,7 @@ from collections.abc import AsyncGenerator
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from backend.db.postgres import async_engine, async_session_factory
-from backend.db.models import Base
+from backend.db.postgres import async_session_factory
 
 
 @pytest.fixture(scope="session", autouse=True)

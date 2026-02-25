@@ -35,7 +35,9 @@ Build a production-ready agentic RAG system for e-commerce customer support that
 - Be evaluated continuously with RAGAS
 - Be observed end-to-end via LangSmith and Prometheus
 
-**Dataset:** `rjac/e-commerce-customer-support-qa` from Hugging Face. Used to populate the vector store (policies, FAQs, Q&A pairs) and to build evaluation sets.
+**Primary Dataset:** `Wix/WixQA` from Hugging Face. Provides real KB help articles as the document store (Tier 1) and three tiers of grounded QA pairs for RAGAS evaluation. The system is fully functional using only this dataset.
+
+**Secondary Dataset (Optional):** `rjac/e-commerce-customer-support-qa` — can be added in later stages as a supplementary historical Q&A store (Tier 2) to extend retrieval coverage with resolved support conversations. The system does not depend on it.
 
 ---
 
@@ -78,8 +80,10 @@ ecom-support-rag/
 │   │   ├── faq_search.py         # Vector search tool
 │   │   └── ticket_create.py      # Human escalation tool
 │   ├── rag/
-│   │   ├── ingest.py             # Dataset loading + chunking + embedding
-│   │   ├── retriever.py          # pgvector semantic search + reranking
+│   │   ├── ingest_wixqa.py       # PRIMARY: WixQA KB articles → chunking → pgvector
+│   │   ├── ingest_rjac.py        # OPTIONAL: rjac Q&A pairs → pgvector (Tier 2)
+│   │   ├── chunker.py            # Section-aware + parent-document chunking logic
+│   │   ├── retriever.py          # pgvector semantic search + reranking (searches both tiers)
 │   │   └── embeddings.py         # Embedding model abstraction
 │   ├── db/
 │   │   ├── postgres.py           # SQLAlchemy async engine
@@ -96,11 +100,13 @@ ecom-support-rag/
 │
 ├── evaluation/
 │   ├── ragas_eval.py             # RAGAS evaluation runner
-│   ├── test_dataset.py           # Build eval dataset from HF data
+│   ├── build_wixqa_testset.py    # PRIMARY: Build eval set from WixQA ExpertWritten + Simulated
+│   ├── build_rjac_testset.py     # OPTIONAL: Build supplementary eval set from rjac dataset
 │   └── results/                  # JSON eval outputs
 │
 └── scripts/
-    ├── ingest_data.sh            # One-shot data ingestion
+    ├── ingest_wixqa.sh           # PRIMARY: ingest WixQA KB articles
+    ├── ingest_rjac.sh            # OPTIONAL: ingest rjac Q&A (run after wixqa)
     └── seed_mock_data.py         # Seed orders/users for mock tools
 ```
 
@@ -135,7 +141,10 @@ ecom-support-rag/
   ┌────────────▼──┐   ┌──────────▼───────────────────────────────┐
   │  Redis Cache  │   │             Data Layer                    │
   │ (recent Q&A)  │   │  PostgreSQL + pgvector                   │
-  └───────────────┘   │  · documents table (embeddings)          │
+  └───────────────┘   │  · documents table — Tier 1              │
+                      │    (WixQA KB articles, policy docs)      │
+                      │  · documents table — Tier 2 (optional)   │
+                      │    (rjac resolved Q&A pairs)             │
                       │  · orders table (mock data)              │
                       │  · sessions table                        │
                       │  · tickets table                         │
@@ -227,26 +236,46 @@ volumes:
 
 ## Phase 1 — Data & Storage Foundation
 
-**Goal:** Load the HuggingFace dataset, chunk it, embed it, and store vectors in pgvector. Seed mock relational data.
+**Goal:** Load the WixQA KB corpus as the primary document store, chunk it with structure-awareness, embed it, and store in pgvector. Seed mock relational data. The `rjac` dataset is explicitly out of scope here and handled in Phase 1b (optional).
 
 ### Tasks
 
-- [ ] `P1-1` Install dependencies: `datasets`, `langchain`, `langchain-community`, `pgvector`, `sqlalchemy[asyncio]`, `asyncpg`
+- [ ] `P1-1` Install dependencies: `datasets`, `langchain`, `langchain-community`, `pgvector`, `sqlalchemy[asyncio]`, `asyncpg`, `pypdf`, `beautifulsoup4`
 - [ ] `P1-2` Write `backend/rag/embeddings.py` — abstraction over embedding models:
-  - Ollama: `nomic-embed-text` (local)
-  - OpenAI: `text-embedding-3-small`
-  - Model selected via `EMBEDDING_PROVIDER` env var
-- [ ] `P1-3` Write `backend/rag/ingest.py`:
-  - Load `rjac/e-commerce-customer-support-qa` via `datasets` library
-  - Inspect columns; map `question`, `answer`, `category` fields
-  - Chunk using LangChain `RecursiveCharacterTextSplitter` (chunk_size=500, overlap=50)
+  - Ollama: `nomic-embed-text` (local, 768-dim)
+  - OpenAI: `text-embedding-3-small` (1536-dim)
+  - Selected via `EMBEDDING_PROVIDER` env var
+  - **Note:** embedding dimension must match `VECTOR(n)` in schema — set via `EMBEDDING_DIM` env var (default 768)
+- [ ] `P1-3` Write `backend/rag/chunker.py` — section-aware chunking:
+  - WixQA articles have titles and structured HTML/markdown body
+  - Use LangChain `RecursiveCharacterTextSplitter` with `HTMLHeaderTextSplitter` for structure
+  - Implement parent-document chunking: store full article as parent, split into child chunks for embedding
+  - Child chunks carry `parent_id` pointer for context expansion at retrieval time
+  - Chunk size: 400 tokens, overlap: 50 tokens
+- [ ] `P1-4` Write `backend/rag/ingest_wixqa.py`:
+  - Load `Wix/WixQA` corpus split: `load_dataset("Wix/WixQA", "wix_kb_corpus")`
+  - For each article: extract `title`, `body`, `url`, `category` fields
+  - Run through `chunker.py` to produce child chunks with parent references
   - Generate embeddings via `embeddings.py`
-  - Upsert into `documents` table with metadata (category, source_id)
-- [ ] `P1-4` Write `backend/db/postgres.py` — async SQLAlchemy engine + session factory
-- [ ] `P1-5` Write `backend/db/models.py` — ORM models for all tables
-- [ ] `P1-6` Write `scripts/seed_mock_data.py` — seed 50 mock orders with statuses (delivered, in-transit, processing, returned)
-- [ ] `P1-7` Write `scripts/ingest_data.sh` — one command to run ingest + seed
-- [ ] `P1-8` Validate: query pgvector with a sample embedding and confirm top-k results return semantically relevant docs
+  - Upsert into `documents` table with `source="wixqa"`, `doc_tier=1` metadata
+  - Hold out nothing here — the WixQA eval QA pairs are separate splits, not derived from a held-out portion of the KB corpus
+- [ ] `P1-5` Write `backend/db/postgres.py` — async SQLAlchemy engine + session factory
+- [ ] `P1-6` Write `backend/db/models.py` — ORM models for all tables
+- [ ] `P1-7` Write `scripts/seed_mock_data.py` — seed 50 mock orders with statuses
+- [ ] `P1-8` Write `scripts/ingest_wixqa.sh` — runs `ingest_wixqa.py` then `seed_mock_data.py`
+- [ ] `P1-9` Validate: query pgvector with a sample embedding and confirm top-k returns semantically relevant WixQA articles
+
+### Phase 1b — Optional: rjac Dataset (Tier 2)
+
+> **This phase is entirely optional.** The system is fully functional without it. Add this after Phase 6 is stable and you want to extend retrieval coverage with resolved support Q&A.
+
+- [ ] `P1b-1` Write `backend/rag/ingest_rjac.py`:
+  - Load `rjac/e-commerce-customer-support-qa`
+  - Extract `qa.knowledge[]` pairs: format as `"Q: {question}\nA: {solution}"`
+  - Embed and upsert with `source="rjac"`, `doc_tier=2` metadata
+  - This populates the **same `documents` table** — retriever searches both tiers transparently
+- [ ] `P1b-2` Write `scripts/ingest_rjac.sh`
+- [ ] `P1b-3` Validate: confirm retriever returns a mix of Tier 1 (KB articles) and Tier 2 (Q&A) results for the same query, and that `doc_tier` metadata is visible in API responses
 
 ### Database Schema
 
@@ -255,16 +284,24 @@ volumes:
 
 CREATE EXTENSION IF NOT EXISTS vector;
 
+-- EMBEDDING_DIM: 768 for nomic-embed-text (Ollama), 1536 for OpenAI text-embedding-3-small
+-- Set the correct dimension before running. Default below is 768.
+
 CREATE TABLE documents (
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    content     TEXT NOT NULL,
-    embedding   VECTOR(1536),          -- 768 for nomic, 1536 for OpenAI
+    content     TEXT NOT NULL,               -- child chunk text
+    parent_id   UUID,                        -- pointer to parent article (self-referential)
+    embedding   VECTOR(768),                 -- change to 1536 if using OpenAI embeddings
+    source      VARCHAR(50),                 -- "wixqa" | "rjac"
+    doc_tier    INTEGER DEFAULT 1,           -- 1 = KB article (primary), 2 = Q&A pair (optional)
     category    VARCHAR(100),
-    source_id   VARCHAR(200),
+    source_id   VARCHAR(200),                -- original article URL or rjac row id
     metadata    JSONB,
     created_at  TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX ON documents USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+CREATE INDEX ON documents (doc_tier);        -- fast filter by tier
+CREATE INDEX ON documents (source);
 
 CREATE TABLE sessions (
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -276,7 +313,7 @@ CREATE TABLE sessions (
 CREATE TABLE messages (
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     session_id  UUID REFERENCES sessions(id),
-    role        VARCHAR(20) NOT NULL,  -- user | assistant | tool
+    role        VARCHAR(20) NOT NULL,        -- user | assistant | tool
     content     TEXT NOT NULL,
     metadata    JSONB,
     created_at  TIMESTAMPTZ DEFAULT NOW()
@@ -286,7 +323,7 @@ CREATE TABLE orders (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     order_number    VARCHAR(50) UNIQUE NOT NULL,
     user_id         VARCHAR(100),
-    status          VARCHAR(50),       -- processing | in-transit | delivered | returned
+    status          VARCHAR(50),             -- processing | in-transit | delivered | returned
     items           JSONB,
     total_amount    DECIMAL(10,2),
     created_at      TIMESTAMPTZ DEFAULT NOW(),
@@ -313,16 +350,18 @@ CREATE TABLE tickets (
 ### Tasks
 
 - [ ] `P2-1` Write `backend/rag/retriever.py`:
-  - `similarity_search(query, top_k=5, category_filter=None)` — cosine similarity search via pgvector
-  - `rerank(query, docs)` — cross-encoder reranking using `sentence-transformers` (local, no API cost)
-  - Return list of `Document(content, metadata, score)`
+  - `similarity_search(query, top_k=5, category_filter=None, tier_filter=None)` — cosine similarity via pgvector
+  - `tier_filter=1` searches only WixQA KB articles; `tier_filter=None` searches all tiers (used when rjac is ingested)
+  - `rerank(query, docs)` — cross-encoder reranking using `sentence-transformers` (local)
+  - Return list of `Document(content, metadata, score, source, doc_tier)`
+  - Parent-document expansion: if a child chunk scores highly, optionally fetch its parent article for broader context
 - [ ] `P2-2` Write `backend/db/redis_client.py`:
   - Cache key: `md5(query + filters)`
   - TTL: 300 seconds (configurable via `REDIS_CACHE_TTL` env var)
   - `get_cached(key)` / `set_cached(key, value)`
   - Cache hit short-circuits the pgvector call entirely
-- [ ] `P2-3` Add metadata filtering support — filter by `category` (returns_policy, shipping, product_qa, account, promotions)
-- [ ] `P2-4` Write unit tests in `evaluation/` to verify retrieval quality on 20 sample queries from the dataset
+- [ ] `P2-3` Add metadata filtering support — filter by `category` (derived from WixQA article categories) and by `doc_tier` (1=KB articles, 2=rjac Q&A pairs)
+- [ ] `P2-4` Write unit tests in `evaluation/` to verify retrieval quality on 20 sample queries drawn from WixQA ExpertWritten eval split
 - [ ] `P2-5` Log retrieval latency to Prometheus counter/histogram (see Phase 6)
 
 ### Retriever Interface
@@ -517,17 +556,35 @@ llm_tokens             = Counter("llm_tokens_total", "LLM tokens used", ["provid
 
 ### RAGAS Evaluation
 
-- [ ] `P6-6` Write `evaluation/test_dataset.py`:
-  - Sample 100 Q&A pairs from `rjac/e-commerce-customer-support-qa`
-  - For each: store `question`, `ground_truth_answer`, `ground_truth_contexts`
-  - Save as `evaluation/ragas_testset.json`
+WixQA provides three ready-made eval splits that map directly to RAGAS metrics without needing to hold out anything from the KB corpus. The KB corpus and eval QA pairs are separate dataset splits.
+
+| WixQA Split | Rows | Use |
+|---|---|---|
+| `wixqa_expertwritten` | 200 | Primary eval — real user queries, expert answers. Hardest. |
+| `wixqa_simulated` | 200 | Secondary eval — expert-validated, good for regression testing |
+| `wixqa_synthetic` | 6,222 | Scale testing — LLM-generated, use for stress-testing retrieval |
+
+- [ ] `P6-6` Write `evaluation/build_wixqa_testset.py`:
+  - Load `wixqa_expertwritten` and `wixqa_simulated` splits
+  - For each row: extract `question`, `answer` (ground truth), `supporting_article` (ground truth context)
+  - Save as `evaluation/wixqa_testset.json`
+  - This is the **primary eval set** — used for every RAGAS run
 - [ ] `P6-7` Write `evaluation/ragas_eval.py`:
-  - For each test question: run retrieval, call LLM, collect `answer`, `contexts`
-  - Score with RAGAS metrics: `faithfulness`, `answer_relevancy`, `context_precision`, `context_recall`
+  - Load `wixqa_testset.json`
+  - For each question: run the full retrieval pipeline, collect `answer`, `contexts`
+  - Score with RAGAS: `faithfulness`, `answer_relevancy`, `context_precision`, `context_recall`
   - Save scores to `evaluation/results/run_{timestamp}.json`
-  - Print summary table
+  - Print summary table with per-split breakdown (ExpertWritten vs Simulated)
 - [ ] `P6-8` Add `make eval` shortcut in `Makefile` or `scripts/`
 - [ ] `P6-9` Target baseline scores: faithfulness > 0.75, answer_relevancy > 0.80
+
+**Optional — Phase 6b: rjac Evaluation Extension**
+> Add only after Phase 1b (rjac ingestion) is complete.
+- [ ] `P6b-1` Write `evaluation/build_rjac_testset.py`:
+  - Hold out 20% of `rjac` rows (never ingested in Phase 1b)
+  - Extract `qa.knowledge[]` pairs as `{question, ground_truth}`
+  - Save as `evaluation/rjac_testset.json`
+- [ ] `P6b-2` Extend `ragas_eval.py` to optionally run against `rjac_testset.json` and produce a combined report showing Tier 1 vs Tier 2 contribution to answer quality
 
 ### RAGAS Evaluation Runner Outline
 
@@ -537,9 +594,11 @@ from ragas import evaluate
 from ragas.metrics import faithfulness, answer_relevancy, context_precision, context_recall
 from datasets import Dataset
 
-# Build dataset: [{question, answer, contexts, ground_truths}]
-# Run: evaluate(dataset, metrics=[...])
-# Export results JSON
+# Load wixqa_testset.json
+# For each question: run RAG pipeline → collect {question, answer, contexts, ground_truths}
+# Run: evaluate(dataset, metrics=[faithfulness, answer_relevancy, context_precision, context_recall])
+# Export: evaluation/results/run_{timestamp}.json
+# Optional: if --rjac flag passed, also evaluate against rjac_testset.json
 ```
 
 ---
@@ -638,8 +697,15 @@ LANGCHAIN_TRACING_V2=true
 LANGCHAIN_API_KEY=ls__...
 LANGCHAIN_PROJECT=ecom-support-rag
 
-# HuggingFace
-HF_DATASET=rjac/e-commerce-customer-support-qa
+# HuggingFace — Primary Dataset
+HF_DATASET_PRIMARY=Wix/WixQA
+
+# HuggingFace — Secondary Dataset (optional, used in Phase 1b)
+# HF_DATASET_SECONDARY=rjac/e-commerce-customer-support-qa
+
+# Embedding dimension — must match VECTOR(n) in schema
+# 768 for nomic-embed-text (Ollama), 1536 for OpenAI text-embedding-3-small
+EMBEDDING_DIM=768
 
 # App
 LOG_LEVEL=INFO
@@ -699,16 +765,18 @@ def get_embedding_model():
 | Phase | Milestone | Deliverable | Done |
 |-------|-----------|-------------|------|
 | 0 | Local env boots | `docker compose up` — all services green | ☐ |
-| 1 | Data ingested | 100% of dataset embedded in pgvector | ☐ |
+| 1 | WixQA ingested | KB corpus embedded in pgvector (Tier 1) | ☐ |
 | 1 | Mock data seeded | 50 orders queryable in postgres | ☐ |
-| 2 | RAG working | Top-k retrieval returns relevant docs, Redis caching confirmed | ☐ |
+| 1b *(opt)* | rjac ingested | Q&A pairs added to pgvector as Tier 2 | ☐ |
+| 2 | RAG working | Top-k retrieval over WixQA KB confirmed, Redis caching confirmed | ☐ |
 | 3 | Agent working | All 4 tools callable, full round-trip for each use case | ☐ |
 | 3 | Escalation working | Frustrated user triggers ticket creation | ☐ |
-| 4 | API live | `POST /chat` returns valid response with sources | ☐ |
+| 4 | API live | `POST /chat` returns valid response with sources + `doc_tier` in response | ☐ |
 | 5 | UI live | Streamlit chat with tool activity visible | ☐ |
 | 6 | Traces in LangSmith | Every agent run traced end-to-end | ☐ |
 | 6 | Metrics in Prometheus | All counters/histograms populating | ☐ |
-| 6 | RAGAS baseline | Faithfulness > 0.75, Relevancy > 0.80 | ☐ |
+| 6 | RAGAS baseline (WixQA) | Faithfulness > 0.75, Relevancy > 0.80 on ExpertWritten split | ☐ |
+| 6b *(opt)* | RAGAS extended (rjac) | Combined Tier 1 + Tier 2 eval report generated | ☐ |
 | 7 | GCP deployed | Backend + Frontend on Cloud Run, managed DB + Redis | ☐ |
 
 ---
@@ -719,5 +787,7 @@ def get_embedding_model():
 - Use `# TODO(P3-2)` inline comments to link code to plan task IDs
 - The `.env` file is gitignored; copy `.env.example` and fill in secrets
 - Run `docker compose up --build` after any Dockerfile or requirements change
-- Run ingest after any schema change: `bash scripts/ingest_data.sh`
+- Primary ingest (required): `bash scripts/ingest_wixqa.sh`
+- Optional Tier 2 ingest: `bash scripts/ingest_rjac.sh` — run only after WixQA ingest is confirmed working
 - Ollama models must be pulled manually inside the container: `docker exec -it ecom-support-rag-ollama-1 ollama pull llama3.2 && ollama pull nomic-embed-text`
+- **Embedding dimension warning:** if switching from Ollama (768-dim) to OpenAI (1536-dim), you must drop and recreate the `documents` table with the updated `VECTOR(n)` size and re-run ingest

@@ -1,8 +1,16 @@
 import asyncio
+import os
 import random
-from datetime import datetime, timedelta
+import sys
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any, Dict, List
+
+# Ensure the project root (which contains the `backend` package) is importable
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_ROOT = os.path.dirname(CURRENT_DIR)
+if PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, PROJECT_ROOT)
 
 from backend.db.models import Order
 from backend.db.postgres import async_session_factory
@@ -30,7 +38,7 @@ def _build_mock_order(i: int) -> Dict[str, Any]:
 
     total_amount = sum(item["unit_price"] * item["quantity"] for item in items)
 
-    created_at = datetime.utcnow() - timedelta(days=random.randint(1, 30))
+    created_at = datetime.now(timezone.utc) - timedelta(days=random.randint(1, 30))
     estimated_delivery = created_at + timedelta(days=5)
 
     return {

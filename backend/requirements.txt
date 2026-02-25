@@ -6,9 +6,17 @@ uvicorn[standard]>=0.27.0
 datasets
 langchain
 langchain-community
+langchain-text-splitters
 pgvector
 sqlalchemy[asyncio]
 asyncpg
+beautifulsoup4
+pypdf
+
+# Phase 2 — RAG core
+redis
+sentence-transformers
+prometheus-client
 
 # Testing
 pytest

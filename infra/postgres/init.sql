@@ -1,16 +1,23 @@
--- infra/postgres/init.sql — pgvector + core tables (Phase 0)
+-- infra/postgres/init.sql — pgvector + core tables (Phase 0/1)
+-- EMBEDDING_DIM: 768 for nomic-embed-text (Ollama), 1536 for OpenAI text-embedding-3-small
+
 CREATE EXTENSION IF NOT EXISTS vector;
 
 CREATE TABLE documents (
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     content     TEXT NOT NULL,
-    embedding   VECTOR(768),           -- 768 for nomic-embed-text (Ollama); increase to 1536 for OpenAI if needed
+    parent_id   UUID REFERENCES documents(id),
+    embedding   VECTOR(768),
+    source      VARCHAR(50),
+    doc_tier    INTEGER DEFAULT 1,
     category    VARCHAR(100),
     source_id   VARCHAR(200),
     metadata    JSONB,
     created_at  TIMESTAMPTZ DEFAULT NOW()
 );
 CREATE INDEX ON documents USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
+CREATE INDEX ON documents (doc_tier);
+CREATE INDEX ON documents (source);
 
 CREATE TABLE sessions (
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -22,7 +29,7 @@ CREATE TABLE sessions (
 CREATE TABLE messages (
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     session_id  UUID REFERENCES sessions(id),
-    role        VARCHAR(20) NOT NULL,  -- user | assistant | tool
+    role        VARCHAR(20) NOT NULL,
     content     TEXT NOT NULL,
     metadata    JSONB,
     created_at  TIMESTAMPTZ DEFAULT NOW()
@@ -32,7 +39,7 @@ CREATE TABLE orders (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     order_number    VARCHAR(50) UNIQUE NOT NULL,
     user_id         VARCHAR(100),
-    status          VARCHAR(50),       -- processing | in-transit | delivered | returned
+    status          VARCHAR(50),
     items           JSONB,
     total_amount    DECIMAL(10,2),
     created_at      TIMESTAMPTZ DEFAULT NOW(),
