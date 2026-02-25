@@ -1,8 +1,8 @@
 ## Overview
 
-This document explains how to bring up the Phase 0/1/2 stack (Docker services), ingest the **WixQA** KB corpus into pgvector, seed mock orders, enable the RAG retriever with Redis caching, and run the test suite.
+This document explains how to bring up the stack with Docker services, ingest the **WixQA** KB corpus into pgvector, seed mock orders, run the agentic backend API (Phases 3–4), and use the Streamlit UI (Phase 5). It also links to the use-case testing guide.
 
-The primary workflow uses Docker Compose for infrastructure (Postgres, Redis, Ollama, backend) and a local Python virtual environment for management commands and tests.
+The primary workflow uses Docker Compose for infrastructure (Postgres, Redis, Ollama, backend, frontend) and a local Python virtual environment for management commands and tests.
 
 ## Prerequisites
 
@@ -47,12 +47,12 @@ The primary workflow uses Docker Compose for infrastructure (Postgres, Redis, Ol
    - `REDIS_PORT=6379`
    - `REDIS_CACHE_TTL=300` (seconds)
 
-## 2. Start Docker services (Phase 0)
+## 2. Start Docker services
 
-From the project root:
+From the project root, start all core services, including the backend API and Streamlit frontend:
 
 ```powershell
-docker compose up -d postgres redis ollama backend
+docker compose up -d postgres redis ollama backend frontend
 ```
 
 Verify services:
@@ -61,7 +61,7 @@ Verify services:
 docker compose ps
 ```
 
-You should see `postgres`, `redis`, `ollama`, and `backend` in `Up` state.
+You should see `postgres`, `redis`, `ollama`, `backend`, and `frontend` in `Up` state.
 
 ## 3. Prepare Ollama models (for embeddings)
 
@@ -110,34 +110,22 @@ bash scripts/ingest_wixqa.sh
 
 > If you see errors about `set` or `$'\r'`, use UNIX line endings (e.g. `dos2unix scripts/ingest_wixqa.sh`).
 
-## 6. Run tests
+## 6. Run use-case tests
 
-For detailed testing flows (unit, integration, and evaluation/quality tests for the retriever and Redis cache), see `docs/how_to_test.md`.
+For detailed testing flows focused on end-to-end use cases (agent + API), see `docs/how_to_test.md`.
 
-At a glance:
+At a glance, once Docker services are running and data is ingested/seeded:
 
-- **Default (unit / mocked, no Postgres or Ollama required):**
+```powershell
+.\venv\Scripts\python -m pytest tests/test_use_cases.py
+```
 
-  ```powershell
-  .\venv\Scripts\python -m pytest tests/
-  ```
-
-- **With Postgres/Redis (integration tests):**
-
-  1. Set `POSTGRES_HOST=localhost` so the host can reach the containerized Postgres.
-  2. Ensure `docker compose up -d postgres redis ollama backend` is running.
-  3. Run integration tests only (includes seeding and retrieval quality checks):
-
-     ```powershell
-     $env:POSTGRES_HOST = "localhost"
-     .\venv\Scripts\python -m pytest tests/ -m "integration"
-     ```
+This exercises the `/chat` API and session history using a stubbed agent, validating session creation, caching behaviour, and history retrieval.
 
 ## 7. Quick verification checklist
 
-- **Phase 0**: `docker compose up -d` and `docker compose ps` show all services `Up`.
+- **Core services**: `docker compose up -d` and `docker compose ps` show `postgres`, `redis`, `ollama`, `backend`, and `frontend` as `Up`.
 - **Ingestion**: `docker compose exec -T backend python -m backend.rag.ingest_wixqa` completes with a non-zero document count.
 - **Seeding**: `docker compose exec -T backend python /app/scripts/seed_mock_data.py` completes with a non-zero orders count.
-- **Phase 2 retrieval**: with services up and data ingested, `pytest evaluation/test_retrieval_quality.py -m "integration"` passes.
-
-Phase 0, Phase 1 (WixQA data and storage foundation), and Phase 2 (RAG core with Redis caching) are then ready for later RAG and agent phases.
+- **Agent API**: `curl http://localhost:8000/health` returns a JSON object with `status`, `postgres`, `redis`, and `ollama` fields.
+- **UI**: navigate to `http://localhost:8501` and send a chat message; you should receive a model response and (when available) sources/tool activity.

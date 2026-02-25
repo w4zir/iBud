@@ -17,6 +17,9 @@ pypdf
 redis
 sentence-transformers
 prometheus-client
+httpx
+langgraph
+langsmith
 
 # Testing
 pytest

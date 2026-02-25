@@ -2,6 +2,7 @@ import os
 from typing import AsyncGenerator
 
 from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
 
 
 def _build_database_url() -> str:
@@ -35,7 +36,9 @@ DATABASE_URL = _build_database_url()
 async_engine: AsyncEngine = create_async_engine(
     DATABASE_URL,
     echo=False,
-    pool_pre_ping=True,
+    # Use NullPool to avoid reusing connections across event loops in tests.
+    poolclass=NullPool,
+    pool_pre_ping=False,
 )
 
 async_session_factory = async_sessionmaker(

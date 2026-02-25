@@ -1,6 +1,6 @@
-## Testing Guide
+## Use-Case Testing Guide
 
-This document explains how to run unit, integration, and evaluation/quality tests for the backend, including the Phase 2 RAG retriever and Redis cache.
+This document focuses on **use-case tests**: end-to-end scenarios that exercise the agent, API, and persistence through realistic workflows such as chatting via `/chat` and inspecting session history.
 
 All examples assume a PowerShell shell on Windows from the project root.
 
@@ -13,102 +13,87 @@ All examples assume a PowerShell shell on Windows from the project root.
   .\venv\Scripts\python -m pip install -r backend\requirements.txt
   ```
 
-- For integration/evaluation tests:
-  - Docker services up (at least `postgres`, `redis`, `ollama`, `backend`)
-  - WixQA KB ingested into Postgres
-  - Mock orders seeded
+- Docker services up (at least `postgres`, `redis`, `ollama`, `backend`)
+- WixQA KB ingested into Postgres
+- Mock orders seeded
 
-## 2. Unit tests (fast, no external services)
+Use `docs/how_to_run.md` for the exact commands to start services and perform ingestion/seeding.
 
-These tests run entirely against in-memory mocks and do not require Postgres, Redis, or Ollama.
+## 2. Automated use-case tests (API-level)
 
-Run all unit tests (default marker configuration excludes `integration`):
+Automated use-case tests are implemented in `tests/test_use_cases.py`. They drive the FastAPI app directly and validate:
 
-```powershell
-.\venv\Scripts\python -m pytest tests/
-```
+- Session creation and message persistence via `POST /chat`
+- Request-level Redis caching for identical queries in the same session
+- Session history retrieval via `GET /sessions/{session_id}/history`
 
-This includes:
-
-- `test_chunker.py` — section-aware and parent-document chunking
-- `test_ingest_transform.py` — WixQA row mapping and chunker integration
-- `test_vector_query_smoke.py` — embedding client and vector query construction
-- `test_redis_client.py` — cache key generation and Redis get/set behavior (mocked)
-- `test_retriever.py` — retriever search, caching, parent expansion, and reranking (mocked)
-
-## 3. Integration tests (Postgres/Redis)
-
-Integration tests require a live Postgres and Redis, plus ingested data.
-
-1. Start the core services:
-
-   ```powershell
-   docker compose up -d postgres redis ollama backend
-   ```
-
-2. Ensure `.env` is configured for Phase 1/2 and that WixQA is ingested and mock orders are seeded (see `docs/how_to_run.md` for commands).
-
-3. From the host, point tests at the containerized Postgres:
-
-   ```powershell
-   $env:POSTGRES_HOST = "localhost"
-   .\venv\Scripts\python -m pytest tests/ -m "integration"
-   ```
-
-Key integration tests:
-
-- `tests/test_seed_mock_data.py` — verifies seeded orders and idempotency
-
-## 4. Retrieval quality tests (Phase 2)
-
-Phase 2 adds evaluation-style tests that validate end-to-end retrieval quality against a small sample of real questions from the WixQA ExpertWritten split.
-
-Prerequisites:
-
-- Docker services: `postgres`, `redis`, `ollama`, `backend` up
-- WixQA KB fully ingested into `documents`
-
-Run the retrieval quality test:
+### Run all use-case tests
 
 ```powershell
-$env:POSTGRES_HOST = "localhost"
-.\venv\Scripts\python -m pytest evaluation/test_retrieval_quality.py -m "integration"
+.\venv\Scripts\python -m pytest tests/test_use_cases.py
 ```
 
-This test:
+These tests stub the underlying agent graph (`run_agent`) to avoid external LLM calls while still exercising the API surface and database interactions.
 
-- Draws 20 sample queries from `Wix/WixQA` (`wixqa_expertwritten`)
-- Uses the Phase 2 `Retriever` to fetch top-k results
-- Asserts that the majority of queries return at least one document
+## 3. Manual end-to-end scenarios
 
-## 5. Suggested workflows
+In addition to automated checks, you can manually validate key user journeys once the backend and frontend are running.
 
-- **During development (fast loop):**
+### 3.1 Chat via Streamlit UI
 
-  ```powershell
-  .\venv\Scripts\python -m pytest tests/ -k "retriever or redis_client"
-  ```
+1. Ensure Docker services are running (including `backend` and `frontend`).
+2. Open the Streamlit UI at `http://localhost:8501`.
+3. In the sidebar:
+   - Set a `User ID` (e.g. `user-1`).
+   - Optionally toggle “Show sources” on or off.
+4. In the main chat area:
+   - Ask an order-related question (e.g. “What is the status of my order?”).
+   - Ask a return-related question (e.g. “Can I return my last order?”).
+   - Ask a product or policy question (e.g. “What is your return policy?”).
+5. Observe:
+   - Assistant responses appear under your messages.
+   - When applicable, a “Tools used” line indicates which tools were called.
+   - When the agent escalates, a banner indicates a ticket was created and shows the ticket ID.
 
-- **Before merging Phase 2 changes:**
+### 3.2 Chat via HTTP API
 
-  ```powershell
-  .\venv\Scripts\python -m pytest tests/
-  $env:POSTGRES_HOST = "localhost"
-  .\venv\Scripts\python -m pytest tests/ -m "integration"
-  .\venv\Scripts\python -m pytest evaluation/test_retrieval_quality.py -m "integration"
-  ```
+You can also call the API directly using `curl` or `Invoke-RestMethod`.
 
-## 6. Troubleshooting
+```powershell
+curl -X POST http://localhost:8000/chat/ `
+  -H "Content-Type: application/json" `
+  -d '{ "session_id": null, "user_id": "manual-user", "message": "Hello" }'
+```
 
-- **Redis connection errors in tests:**
-  - Unit tests mock Redis and should not require a live instance.
-  - For integration tests, ensure `docker compose ps` shows `redis` as `Up` and that `REDIS_HOST` / `REDIS_PORT` are correct in `.env`.
+The response includes:
 
-- **No results in retrieval quality tests:**
-  - Confirm WixQA ingestion has run successfully (non-zero `documents` count for `source='wixqa'`).
-  - Ensure embeddings were generated with the same `EMBEDDING_DIM` as your schema.
+- `session_id` — use this to continue the conversation.
+- `response` — assistant answer text.
+- `sources` — retrieved documents (when available).
+- `tools_used` — list of tool names invoked.
+- `escalated` / `ticket_id` — escalation status.
 
-- **HuggingFace dataset download issues:**
-  - Check network access.
-  - Try running `python -c "from datasets import load_dataset; load_dataset('Wix/WixQA', 'wixqa_expertwritten', split='train')"` inside the backend container to verify access.
+### 3.3 Inspect session history
+
+Given a `session_id` from a chat response, fetch the full message history:
+
+```powershell
+curl http://localhost:8000/sessions/<session_id>/history
+```
+
+You should see a chronological list of `{role, content, created_at}` entries for the session.
+
+## 4. Troubleshooting use-case tests
+
+- **API not reachable (`connection refused`)**
+  - Ensure `docker compose ps` shows `backend` as `Up`.
+  - Confirm you are calling `http://localhost:8000` (or your configured host/port).
+
+- **Use-case tests failing due to database errors**
+  - Verify Postgres is running and accessible from the host.
+  - Confirm ingestion and seeding have completed successfully.
+
+- **Streamlit UI cannot reach backend**
+  - Check that `BACKEND_BASE_URL` (if set) points to the correct backend URL.
+  - Ensure CORS is configured via `CORS_ORIGINS` in `.env` (e.g. `http://localhost:8501`).
 
