@@ -1,6 +1,7 @@
 # Phase 0 — minimal deps for bootstrap (FastAPI + uvicorn)
 fastapi>=0.109.0
 uvicorn[standard]>=0.27.0
+python-dotenv>=1.0.0
 
 # Phase 1 — data & storage foundation
 datasets

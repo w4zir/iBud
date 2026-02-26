@@ -43,4 +43,23 @@ You can track each step of a user message in several ways:
 - **The actual SQL query**  
   `order_lookup` uses SQLAlchemy to run a `SELECT` on the `orders` table (filtered by `order_number` and/or `user_id`). To see the emitted SQL:
   - **SQLAlchemy echo**: In `backend/db/postgres.py`, the engine is created with `echo=False`. Set `echo=True` (or drive it from an env var like `SQL_ECHO=1`) so that SQLAlchemy logs each statement to stdout. Then run the backend and trigger an order lookup; the SQL will appear in the terminal.
-  - **PostgreSQL**: Alternatively, enable query logging on the Postgres server (e.g. `log_statement = 'all'`) and inspect the DB logs.
+ - **PostgreSQL**: Alternatively, enable query logging on the Postgres server (e.g. `log_statement = 'all'`) and inspect the DB logs.
+
+## Evaluation and LLM behavior
+
+### Q: Where is the message `The output is incomplete due to a max_tokens length limit.` coming from, and where is the `max_tokens` limit defined?
+
+This message is emitted by the Ragas / LLM stack (via the `instructor`-style JSON-enforcing wrapper around the chat model), not by our application code. When the underlying chat completion hits its configured `max_tokens` response limit and returns with `finish_reason="length"`, that wrapper raises an `InstructorRetryException` whose message includes `The output is incomplete due to a max_tokens length limit.`. The actual `max_tokens` value is defined inside the LLM client / provider configuration used by Ragas (or its dependencies) and is **not** set anywhere in this repository; to change it you would need to adjust the LLM configuration in the Ragas/LLM layer (for example, via that library’s settings or environment variables), not in our `evaluation/` code.
+
+### Q: How do RAGAS evaluations work on the WixQA dataset, and what model is used for eval?
+
+The `evaluation/ragas_eval.py` script runs RAGAS over the WixQA test set by sending each test question to the backend `/chat` endpoint, taking the **final response string** it returns (whatever the agent answered) and pairing it with the **ground-truth answer** from the WixQA JSON as the reference, plus the retrieved contexts (from `sources` or, as a fallback, the ground-truth article). These are assembled into a `Dataset` with `user_input`, `response`, `retrieved_contexts`, and `reference`, which is then scored by `ragas.evaluate` — RAGAS never inspects the agent internals, only the observable inputs/outputs. For the evaluation LLM, you can configure a **separate judge provider/model** from the runtime agent:
+
+- By default, if no judge-specific env vars are set, RAGAS will:
+  - Use a Cerebras-backed judge when `LLM_PROVIDER=cerebras` (via the OpenAI-compatible endpoint and `CEREBRAS_MODEL`, defaulting to `llama3.1-8b`), or
+  - Fall back to RAGAS' own OpenAI-backed default evaluator.
+- To override this and run evals on a different provider/model than the agent, set:
+  - `RAGAS_LLM_PROVIDER=openai` or `cerebras`
+  - Optionally, `RAGAS_OPENAI_MODEL` or `RAGAS_CEREBRAS_MODEL` and `RAGAS_CEREBRAS_API_KEY` / `RAGAS_CEREBRAS_BASE_URL`
+
+These judge-specific env vars only affect RAGAS evaluation and do **not** change which model the agent uses at runtime.

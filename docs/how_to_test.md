@@ -198,6 +198,21 @@ You should see a chronological list of `{role, content, created_at}` entries for
    - Overall scores for `faithfulness`, `answer_relevancy`, `context_precision`, `context_recall`
    - Per-split breakdown for ExpertWritten vs Simulated questions
 
+5. (Optional) Configure a separate judge model/provider for RAGAS:
+
+   - By default, if no judge-specific env vars are set, RAGAS will:
+     - Use a local Ollama-backed judge when `LLM_PROVIDER=ollama` (the default for agents), reusing `OLLAMA_BASE_URL`/`OLLAMA_MODEL`.
+     - Use a Cerebras-backed judge when `LLM_PROVIDER=cerebras`, reusing `CEREBRAS_*` env vars.
+     - Fall back to RAGAS' own OpenAI-backed default evaluator otherwise.
+   - To force RAGAS to use a different judge than the runtime agent, set in `.env`:
+     - `RAGAS_LLM_PROVIDER=ollama`, `openai`, or `cerebras`.
+     - Optionally, the following judge-specific overrides:
+       - For Ollama: `RAGAS_OLLAMA_MODEL`, `RAGAS_OLLAMA_BASE_URL`, `RAGAS_OLLAMA_API_KEY` (API key is typically ignored by local Ollama but required by the OpenAI client).
+       - For OpenAI: `RAGAS_OPENAI_MODEL`, `RAGAS_OPENAI_BASE_URL` (credentials are read from `OPENAI_API_KEY`).
+       - For Cerebras: `RAGAS_CEREBRAS_MODEL`, `RAGAS_CEREBRAS_API_KEY`, `RAGAS_CEREBRAS_BASE_URL`.
+
+   These RAGAS-specific env vars only affect evaluation runs and do not change which model the agent uses for live chats.
+
 ## 8. Troubleshooting
 
 - **API not reachable (`connection refused`)**

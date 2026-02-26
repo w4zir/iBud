@@ -63,5 +63,7 @@ From the project root:
   .\venv\Scripts\python -m evaluation.ragas_eval --backend-url http://localhost:8000 --limit 50
   ```
 
+  You can configure a separate judge provider/model for RAGAS via `RAGAS_LLM_PROVIDER` and related env vars; by default it reuses the runtime provider (e.g. local Ollama when `LLM_PROVIDER=ollama`, Cerebras when `LLM_PROVIDER=cerebras`). See `docs/faq.md`, `docs/how_to_run.md`, and `docs/how_to_test.md` for details.
+
 See `docs/how_to_run.md` and `docs/how_to_test.md` for detailed instructions and scenarios.
 
