@@ -3,18 +3,7 @@ from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import (
-    Boolean,
-    DateTime,
-    Float,
-    ForeignKey,
-    Integer,
-    Numeric,
-    String,
-    Text,
-    func,
-    text,
-)
+from sqlalchemy import DateTime, ForeignKey, Integer, Numeric, String, Text, func, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -61,17 +50,9 @@ class Session(Base):
         server_default=text("gen_random_uuid()"),
     )
     user_id: Mapped[Optional[str]] = mapped_column(String(100))
-    channel: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
-    intent: Mapped[Optional[str]] = mapped_column(String(50), nullable=True)
-    escalated: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
-    csat: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
-    )
-    end_time: Mapped[Optional[datetime]] = mapped_column(
-        DateTime(timezone=True),
-        nullable=True,
     )
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -157,63 +138,6 @@ class Ticket(Base):
     )
 
 
-class AgentSpan(Base):
-    """Event-warehouse row for a single agent action within a conversation trace."""
-
-    __tablename__ = "agent_spans"
-
-    id: Mapped[str] = mapped_column(
-        UUID(as_uuid=False),
-        primary_key=True,
-        server_default=text("gen_random_uuid()"),
-    )
-    trace_id: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
-    span_name: Mapped[str] = mapped_column(String(100), nullable=False)
-    attributes: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSONB)
-    latency_ms: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    timestamp: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-    )
-
-
-class Outcome(Base):
-    """Task-level outcome for a conversation session."""
-
-    __tablename__ = "outcomes"
-
-    id: Mapped[str] = mapped_column(
-        UUID(as_uuid=False),
-        primary_key=True,
-        server_default=text("gen_random_uuid()"),
-    )
-    session_id: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
-    task: Mapped[str] = mapped_column(String(200), nullable=False)
-    completed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-    verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
-
-
-class EvaluationScore(Base):
-    """LLM-evaluated quality scores for a completed session."""
-
-    __tablename__ = "evaluation_scores"
-
-    id: Mapped[str] = mapped_column(
-        UUID(as_uuid=False),
-        primary_key=True,
-        server_default=text("gen_random_uuid()"),
-    )
-    session_id: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
-    groundedness: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    hallucination: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
-    helpfulness: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    policy_compliance: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-    )
-
-
 __all__ = [
     "Base",
     "Document",
@@ -221,8 +145,5 @@ __all__ = [
     "Message",
     "Order",
     "Ticket",
-    "AgentSpan",
-    "Outcome",
-    "EvaluationScore",
 ]
 

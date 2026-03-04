@@ -1,17 +1,14 @@
 from __future__ import annotations
 
 import json
-import logging
 import os
 import re
-import time
 from typing import Any, Dict, List
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from ..config import debug_print, get_llm
 from ..observability.prometheus_metrics import escalations, llm_tokens, tool_calls
-from ..observability.span_recorder import record_outcome, record_span
 from ..rag.retriever import RetrievedDoc, Retriever
 from ..tools.faq_search import faq_search_tool
 from ..tools.order_lookup import order_lookup_tool
@@ -24,8 +21,6 @@ from .prompts import (
     SYSTEM_RESPONDER,
 )
 from .state import AgentState, Intent, RetrievedDocState, ToolCall, ToolResult
-
-logger = logging.getLogger(__name__)
 
 
 def _get_latest_user_message(state: AgentState) -> str:
@@ -113,7 +108,6 @@ def _parse_planner_tool_calls(raw: str) -> List[Dict[str, Any]]:
 
 
 async def classify_intent(state: AgentState) -> AgentState:
-    t0 = time.perf_counter()
     llm = get_llm()
     user_text = _get_latest_user_message(state)
     messages = [
@@ -149,18 +143,6 @@ async def classify_intent(state: AgentState) -> AgentState:
     next_state: AgentState = dict(state)
     next_state["intent"] = intent
     debug_print("agent", "classify_intent", intent=intent)
-
-    latency_ms = (time.perf_counter() - t0) * 1000
-    try:
-        await record_span(
-            trace_id=state.get("session_id") or "",
-            span_name="intent_detection",
-            attributes={"intent": intent, "confidence": 1.0},
-            latency_ms=round(latency_ms, 2),
-        )
-    except Exception:
-        pass
-
     return next_state
 
 
@@ -175,7 +157,6 @@ def _intent_to_category(intent: Intent | None) -> str | None:
 
 
 async def retrieve_context(state: AgentState) -> AgentState:
-    t0 = time.perf_counter()
     user_text = _get_latest_user_message(state)
     intent = state.get("intent")
     category = _intent_to_category(intent)
@@ -204,21 +185,6 @@ async def retrieve_context(state: AgentState) -> AgentState:
     next_state: AgentState = dict(state)
     next_state["retrieved_docs"] = serialized
     debug_print("agent", "retrieve_context", intent=intent, category=category, docs_count=len(docs))
-
-    latency_ms = (time.perf_counter() - t0) * 1000
-    try:
-        await record_span(
-            trace_id=state.get("session_id") or "",
-            span_name="retrieval",
-            attributes={
-                "docs_returned": len(docs),
-                "doc_ids": [d.document_id for d in docs],
-            },
-            latency_ms=round(latency_ms, 2),
-        )
-    except Exception:
-        pass
-
     return next_state
 
 
@@ -270,14 +236,11 @@ async def plan_action(state: AgentState) -> AgentState:
 async def execute_tool(state: AgentState) -> AgentState:
     calls = state.get("tool_calls") or []
     results: List[ToolResult] = []
-    trace_id = state.get("session_id") or ""
 
     for call in calls:
         name = call.get("name")
         args = call.get("arguments", {})
         debug_print("agent", "tool", name=name, arguments=args)
-        t0 = time.perf_counter()
-        success = False
         try:
             if name:
                 try:
@@ -310,7 +273,6 @@ async def execute_tool(state: AgentState) -> AgentState:
             else:
                 raise ValueError(f"Unknown tool: {name}")
 
-            success = True
             results.append(
                 ToolResult(
                     name=name or "",
@@ -328,21 +290,6 @@ async def execute_tool(state: AgentState) -> AgentState:
                     error=str(exc),
                 )
             )
-        finally:
-            latency_ms = (time.perf_counter() - t0) * 1000
-            try:
-                await record_span(
-                    trace_id=trace_id,
-                    span_name="tool_call",
-                    attributes={
-                        "tool_name": name or "",
-                        "success": success,
-                        "retries": 0,
-                    },
-                    latency_ms=round(latency_ms, 2),
-                )
-            except Exception:
-                pass
 
     next_state: AgentState = dict(state)
     next_state["tool_results"] = results
@@ -358,7 +305,6 @@ async def execute_tool(state: AgentState) -> AgentState:
 
 
 async def synthesize_response(state: AgentState) -> AgentState:
-    t0 = time.perf_counter()
     llm = get_llm()
     user_text = _get_latest_user_message(state)
     retrieved = state.get("retrieved_docs") or []
@@ -386,23 +332,10 @@ async def synthesize_response(state: AgentState) -> AgentState:
     next_state: AgentState = dict(state)
     next_state["final_response"] = answer
     debug_print("agent", "synthesize_response")
-
-    latency_ms = (time.perf_counter() - t0) * 1000
-    try:
-        await record_span(
-            trace_id=state.get("session_id") or "",
-            span_name="response_generation",
-            attributes={},
-            latency_ms=round(latency_ms, 2),
-        )
-    except Exception:
-        pass
-
     return next_state
 
 
 async def check_escalation(state: AgentState) -> AgentState:
-    t0 = time.perf_counter()
     llm = get_llm()
     user_text = _get_latest_user_message(state)
     tool_results = state.get("tool_results") or []
@@ -429,29 +362,6 @@ async def check_escalation(state: AgentState) -> AgentState:
     next_state: AgentState = dict(state)
     next_state["should_escalate"] = bool(should)
     debug_print("agent", "check_escalation", should_escalate=bool(should))
-
-    latency_ms = (time.perf_counter() - t0) * 1000
-    task = str(state.get("intent") or "unknown")
-    completed = not should
-    try:
-        await record_span(
-            trace_id=state.get("session_id") or "",
-            span_name="task_outcome",
-            attributes={
-                "task": task,
-                "completed": completed,
-                "escalated": bool(should),
-            },
-            latency_ms=round(latency_ms, 2),
-        )
-        await record_outcome(
-            session_id=state.get("session_id") or "",
-            task=task,
-            completed=completed,
-        )
-    except Exception:
-        pass
-
     return next_state
 
 
