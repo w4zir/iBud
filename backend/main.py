@@ -13,11 +13,13 @@ from .api.routes.chat import router as chat_router
 from .api.routes.health import router as health_router
 from .api.routes.sessions import router as sessions_router
 from .config import log_event
+from .observability.otel import init_tracing
 from .observability.prometheus_metrics import error_count, request_count
 
 
 def create_app() -> FastAPI:
     app = FastAPI(title="E-Commerce Support RAG API")
+    init_tracing(app)
 
     origins_env = __import__("os").getenv("CORS_ORIGINS", "")
     origins: List[str] = []

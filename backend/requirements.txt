@@ -21,6 +21,10 @@ prometheus-client
 httpx
 langgraph
 langsmith
+opentelemetry-api
+opentelemetry-sdk
+opentelemetry-instrumentation-fastapi
+opentelemetry-exporter-otlp
 
 # Testing
 pytest

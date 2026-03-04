@@ -30,8 +30,10 @@ Unit tests live throughout `tests/` and cover:
 - Redis caching helpers (`tests/test_redis_client.py`)
 - Seed scripts (`tests/test_seed_mock_data.py`)
 - Phase 6 observability and tracing (`tests/test_langsmith_tracing.py`, `tests/test_observability_metrics.py`)
+- Warehouse/OTel/analytics layers (`tests/test_warehouse.py`, `tests/test_otel_tracing.py`, `tests/test_analytics_metrics.py`)
 - Request-ID middleware (`tests/test_request_id_middleware.py`)
 - Evaluation utilities (`tests/test_build_wixqa_testset.py`, `tests/test_ragas_eval.py`)
+- Async evaluation pipeline (`tests/test_evaluation_pipeline.py`)
 
 Run all unit tests (integration tests are excluded by default via `pytest.ini`):
 
@@ -49,7 +51,7 @@ Integration tests are marked with `@pytest.mark.integration` and assume:
 Examples include:
 
 - `tests/test_vector_query_smoke.py`
-- `evaluation/test_retrieval_quality.py`
+- `tests/test_seed_mock_data.py`
 
 Run integration tests explicitly:
 
@@ -150,6 +152,8 @@ You should see a chronological list of `{role, content, created_at}` entries for
    - `errors_total`
    - `escalations_total`
    - `llm_tokens_total`
+   - `db_operation_latency_seconds`
+   - `redis_operation_latency_seconds`
 
 3. Open the Prometheus UI (default `http://localhost:9090`) and verify that the `backend` target is `UP`.
 
@@ -182,6 +186,16 @@ You should see a chronological list of `{role, content, created_at}` entries for
 2. Restart the backend so it picks up the new environment.
 3. Send one or more chat requests (via UI or API).
 4. In the LangSmith UI, confirm that new traces appear with metadata such as `session_id`, `user_id`, and `intent` attached.
+
+### 6.4 OTel tracing verification
+
+With `OTEL_ENABLED=true` and an OTLP endpoint configured:
+
+1. Send chat traffic through `POST /chat`.
+2. Inspect your OTel backend/collector output for:
+   - A root `conversation` span
+   - Child spans for intent, retrieval, tool calls, synthesis, and outcome
+3. Confirm LangSmith metadata includes `otel_trace_id` and `otel_span_id` when tracing is enabled.
 
 ## 7. RAG quality evaluation (RAGAS)
 
@@ -243,6 +257,11 @@ Each `evaluation/results/run_<timestamp>.json` file includes:
 - **Use-case tests failing due to database errors**
   - Verify Postgres is running and accessible from the host.
   - Confirm ingestion and seeding have completed successfully.
+
+- **Async evaluation pipeline not producing scores**
+  - Trigger manually via `POST /admin/eval/trigger`.
+  - Confirm rows exist in `outcomes` and are old enough for `min_age_minutes`.
+  - Verify no existing `evaluation_scores` row already exists for the same `session_id`.
 
 - **Streamlit UI cannot reach backend**
   - Check that `BACKEND_BASE_URL` (if set) points to the correct backend URL.

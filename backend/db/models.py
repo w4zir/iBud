@@ -3,7 +3,7 @@ from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import DateTime, ForeignKey, Integer, Numeric, String, Text, func, text
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, Numeric, String, Text, func, text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -50,6 +50,11 @@ class Session(Base):
         server_default=text("gen_random_uuid()"),
     )
     user_id: Mapped[Optional[str]] = mapped_column(String(100))
+    intent: Mapped[Optional[str]] = mapped_column(String(50))
+    escalated: Mapped[bool] = mapped_column(Boolean, default=False, server_default=text("false"))
+    resolved_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True))
+    csat_score: Mapped[Optional[int]] = mapped_column(Integer)
+    nps_score: Mapped[Optional[int]] = mapped_column(Integer)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
@@ -61,6 +66,15 @@ class Session(Base):
     )
 
     messages: Mapped[List["Message"]] = relationship(
+        back_populates="session",
+        cascade="all, delete-orphan",
+    )
+    agent_spans: Mapped[List["AgentSpan"]] = relationship(back_populates="session")
+    outcomes: Mapped[List["Outcome"]] = relationship(
+        back_populates="session",
+        cascade="all, delete-orphan",
+    )
+    evaluation_scores: Mapped[List["EvaluationScore"]] = relationship(
         back_populates="session",
         cascade="all, delete-orphan",
     )
@@ -138,6 +152,82 @@ class Ticket(Base):
     )
 
 
+class AgentSpan(Base):
+    __tablename__ = "agent_spans"
+
+    id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False),
+        primary_key=True,
+        server_default=text("gen_random_uuid()"),
+    )
+    session_id: Mapped[Optional[str]] = mapped_column(
+        UUID(as_uuid=False),
+        ForeignKey("sessions.id", ondelete="SET NULL"),
+    )
+    trace_id: Mapped[Optional[str]] = mapped_column(String(100))
+    span_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    attributes: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSONB)
+    latency_ms: Mapped[Optional[float]] = mapped_column(Float)
+    timestamp: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+
+    session: Mapped[Optional[Session]] = relationship(back_populates="agent_spans")
+
+
+class Outcome(Base):
+    __tablename__ = "outcomes"
+
+    id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False),
+        primary_key=True,
+        server_default=text("gen_random_uuid()"),
+    )
+    session_id: Mapped[Optional[str]] = mapped_column(
+        UUID(as_uuid=False),
+        ForeignKey("sessions.id", ondelete="CASCADE"),
+    )
+    task: Mapped[str] = mapped_column(String(100), nullable=False)
+    completed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    escalated: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+
+    session: Mapped[Optional[Session]] = relationship(back_populates="outcomes")
+
+
+class EvaluationScore(Base):
+    __tablename__ = "evaluation_scores"
+
+    id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False),
+        primary_key=True,
+        server_default=text("gen_random_uuid()"),
+    )
+    session_id: Mapped[Optional[str]] = mapped_column(
+        UUID(as_uuid=False),
+        ForeignKey("sessions.id", ondelete="CASCADE"),
+    )
+    groundedness: Mapped[Optional[float]] = mapped_column(Float)
+    hallucination: Mapped[Optional[bool]] = mapped_column(Boolean)
+    helpfulness: Mapped[Optional[float]] = mapped_column(Float)
+    metadata_: Mapped[Optional[Dict[str, Any]]] = mapped_column("metadata", JSONB)
+    evaluated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+
+    session: Mapped[Optional[Session]] = relationship(back_populates="evaluation_scores")
+
+
 __all__ = [
     "Base",
     "Document",
@@ -145,5 +235,8 @@ __all__ = [
     "Message",
     "Order",
     "Ticket",
+    "AgentSpan",
+    "Outcome",
+    "EvaluationScore",
 ]
 

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import time
+from datetime import datetime, timezone
 from hashlib import md5
 from typing import Any, AsyncGenerator, Dict, List, Optional
 
@@ -23,6 +25,8 @@ from ...observability.prometheus_metrics import (
     request_count,
     request_latency,
 )
+from ...observability.otel import get_current_trace_ids, get_tracer
+from ...observability.warehouse import record_outcome, update_session_analytics
 from ..models import ChatRequest, ChatResponse, Source
 
 
@@ -102,6 +106,32 @@ def _tools_used_from_state(state: AgentState) -> List[str]:
     return sorted(set(names))
 
 
+def _emit_warehouse_updates(
+    *,
+    session_id: str,
+    intent: Optional[str],
+    escalated: bool,
+    completed: bool = True,
+) -> None:
+    asyncio.create_task(
+        update_session_analytics(
+            session_id=session_id,
+            intent=intent,
+            escalated=escalated,
+            resolved_at=datetime.now(timezone.utc),
+        )
+    )
+    asyncio.create_task(
+        record_outcome(
+            session_id=session_id,
+            task="conversation",
+            completed=completed,
+            escalated=escalated,
+            verified=False,
+        )
+    )
+
+
 async def _run_agent_flow(
     db: AsyncSession,
     req: ChatRequest,
@@ -110,9 +140,18 @@ async def _run_agent_flow(
     use_cache: bool = True,
 ) -> ChatResponse:
     start = time.perf_counter()
+    span_ctx = None
+    root_span = None
     request_status = "ok"
     try:
         session = await _get_or_create_session(db, req.session_id, req.user_id)
+        tracer = get_tracer()
+        if tracer is not None:
+            span_ctx = tracer.start_as_current_span("conversation")
+            root_span = span_ctx.__enter__()
+            root_span.set_attribute("session_id", str(session.id))
+            root_span.set_attribute("user_id", req.user_id)
+            root_span.set_attribute("channel", "api")
 
         log_event(
             "chat",
@@ -179,6 +218,12 @@ async def _run_agent_flow(
                 request_id=request_id,
                 session_id=str(session.id),
             )
+            _emit_warehouse_updates(
+                session_id=str(session.id),
+                intent=None,
+                escalated=bool(cached_payload.get("escalated", False)),
+                completed=True,
+            )
             return resp
 
         log_event("chat", "agent_start", request_id=request_id, session_id=str(session.id))
@@ -194,6 +239,9 @@ async def _run_agent_flow(
             "request_id": request_id,
             "messages": history,
         }
+        trace_id, _ = get_current_trace_ids()
+        if trace_id:
+            state["trace_id"] = trace_id
         final_state = await agent_graph.run_agent(state, thread_id=str(session.id))
         response_text = final_state.get("final_response") or ""
 
@@ -247,6 +295,15 @@ async def _run_agent_flow(
             tools_used=tools_used,
             escalated=bool(final_state.get("should_escalate", False)),
         )
+        _emit_warehouse_updates(
+            session_id=str(session.id),
+            intent=final_state.get("intent"),
+            escalated=bool(final_state.get("should_escalate", False)),
+            completed=True,
+        )
+        if root_span is not None:
+            root_span.set_attribute("intent", str(final_state.get("intent") or ""))
+            root_span.set_attribute("escalated", bool(final_state.get("should_escalate", False)))
         resp = ChatResponse(**payload)
         return resp
     except Exception:
@@ -258,6 +315,10 @@ async def _run_agent_flow(
         raise
     finally:
         elapsed = time.perf_counter() - start
+        if root_span is not None:
+            root_span.set_attribute("latency_ms", elapsed * 1000.0)
+        if span_ctx is not None:
+            span_ctx.__exit__(None, None, None)
         try:
             request_count.labels(status=request_status).inc()
             request_latency.observe(elapsed)

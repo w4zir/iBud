@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...db.models import Ticket
 from ...db.postgres import get_session
+from ...evaluation.pipeline import AsyncEvaluator
 from ...rag.ingest_wixqa import ingest_wixqa
 
 
@@ -41,6 +42,13 @@ async def admin_list_tickets(
             }
         )
     return tickets
+
+
+@router.post("/eval/trigger")
+async def admin_trigger_eval(limit: int = 25, min_age_minutes: int = 5) -> dict:
+    evaluator = AsyncEvaluator()
+    stats = await evaluator.run_batch(limit=limit, min_age_minutes=min_age_minutes)
+    return {"status": "ok", **stats}
 
 
 __all__ = ["router"]

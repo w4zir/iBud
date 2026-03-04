@@ -143,6 +143,45 @@ When changing retrieval, chunking, embeddings, or LLM configuration:
    - Track `faithfulness`, `answer_relevancy`, `context_precision`, `context_recall`.
    - Block changes that significantly regress these metrics unless there is a documented trade-off.
 
+## Warehouse-backed KPI formulas (Phases 5-6)
+
+The following formulas are the source of truth for product/business observability:
+
+- **Automation rate** = `COUNT(completed=true AND escalated=false) / COUNT(*)` from `outcomes`
+- **Escalation rate** = `COUNT(escalated=true) / COUNT(*)` from `outcomes`
+- **FCR proxy** = sessions resolved without escalation on first outcome
+- **Tool success rate** = successful tool calls / total tool calls from `agent_spans`
+- **Turns to resolution** = average message count for resolved sessions (`sessions.resolved_at IS NOT NULL`)
+- **Recovery rate** = sessions with tool failures that still reach completed outcomes
+
+Assumptions:
+
+- `outcomes` has one or more rows per conversation; KPI queries use latest conversation lifecycle writes.
+- `agent_spans` carries tool success/failure counts in span attributes from `execute_tool`.
+- CSAT/NPS fields (`sessions.csat_score`, `sessions.nps_score`) are placeholders until an external survey source is connected.
+
+## Async evaluation QA checks (Phase 7)
+
+Continuous quality scoring is validated via:
+
+- Unit tests in `tests/test_evaluation_pipeline.py` (sampling, idempotency, write shape)
+- Manual trigger via `POST /admin/eval/trigger`
+- DB-level verification: every scored session has exactly one `evaluation_scores` row
+
+When investigating issues:
+
+1. Check `outcomes` rows exist for candidate sessions.
+2. Ensure session age meets `min_age_minutes`.
+3. Confirm duplicates are skipped by design when a score already exists.
+
+## OTel QA checks (Phase 8)
+
+When OTel is enabled:
+
+- Verify root `conversation` span appears for each chat request.
+- Verify child spans exist for intent detection, retrieval, tool calls, response synthesis, and outcome.
+- Verify LangSmith run metadata includes `otel_trace_id` and `otel_span_id` for cross-correlation.
+
 ## Release / merge checklist
 
 Before merging or releasing:

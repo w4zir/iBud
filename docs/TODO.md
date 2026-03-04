@@ -105,17 +105,17 @@ Acceptance criteria:
 
 ## Phase 5 - Implement Event Warehouse Schema
 
-- [ ] Add migration(s) under `infra/postgres/` for analytics tables aligned with `specs/observability.md`:
+- [x] Add migration(s) under `infra/postgres/` for analytics tables aligned with `specs/observability.md`:
   - `agent_spans`
   - `outcomes`
   - `evaluation_scores`
   - (extend) `sessions` analytics fields where needed
-- [ ] Add ORM models in `backend/db/models.py` and data access helpers.
-- [ ] Write event writers for span-level and outcome-level records from:
+- [x] Add ORM models in `backend/db/models.py` and data access helpers.
+- [x] Write event writers for span-level and outcome-level records from:
   - `backend/agent/nodes.py`
   - `backend/api/routes/chat.py`
   - `evaluation/ragas_eval.py` (or async evaluator service)
-- [ ] Define retention and indexing strategy for time-series querying.
+- [x] Define retention and indexing strategy for time-series querying.
 
 Acceptance criteria:
 
@@ -125,16 +125,16 @@ Acceptance criteria:
 
 ## Phase 6 - Business and Product Metric Computation Layer
 
-- [ ] Add metric computation jobs/scripts in `evaluation/` or a new `backend/analytics/` module for:
+- [x] Add metric computation jobs/scripts in `evaluation/` or a new `backend/analytics/` module for:
   - Automation rate
   - Escalation rate
   - First contact resolution proxy
   - Tool success rate
   - Turns to resolution
   - Recovery rate
-- [ ] Add SQL definitions/views for repeatable metric queries over warehouse tables.
-- [ ] Document formulas and data assumptions in `docs/qa.md`.
-- [ ] Add optional placeholders for CSAT/NPS integration once data source exists.
+- [x] Add SQL definitions/views for repeatable metric queries over warehouse tables.
+- [x] Document formulas and data assumptions in `docs/qa.md`.
+- [x] Add optional placeholders for CSAT/NPS integration once data source exists.
 
 Acceptance criteria:
 
@@ -144,14 +144,14 @@ Acceptance criteria:
 
 ## Phase 7 - Asynchronous Evaluation Pipeline
 
-- [ ] Create async evaluator pipeline (new module under `evaluation/` or `backend/evaluation/`) that:
+- [x] Create async evaluator pipeline (new module under `evaluation/` or `backend/evaluation/`) that:
   - Samples completed sessions
   - Reconstructs evaluation inputs
   - Runs groundedness/hallucination/helpfulness checks
   - Writes scores to `evaluation_scores`
-- [ ] Keep `evaluation/ragas_eval.py` as a benchmark/regression runner, but separate it from continuous scoring.
-- [ ] Add scheduling mechanism (cron/worker) and failure retries.
-- [ ] Add tests for evaluator idempotency and duplicate-run prevention.
+- [x] Keep `evaluation/ragas_eval.py` as a benchmark/regression runner, but separate it from continuous scoring.
+- [x] Add scheduling mechanism (cron/worker) and failure retries.
+- [x] Add tests for evaluator idempotency and duplicate-run prevention.
 
 Acceptance criteria:
 
@@ -162,16 +162,16 @@ Acceptance criteria:
 
 ## Phase 8 - OpenTelemetry Alignment (Spec-Level Tracing)
 
-- [ ] Add OpenTelemetry SDK instrumentation in backend entrypoints and agent execution path.
-- [ ] Define root conversation trace and child spans for:
+- [x] Add OpenTelemetry SDK instrumentation in backend entrypoints and agent execution path.
+- [x] Define root conversation trace and child spans for:
   - Intent detection
   - Retrieval
   - Tool calls
   - Response synthesis
   - Outcome
-- [ ] Add OTel Collector config under `infra/` and export pipeline (OTLP).
-- [ ] Bridge/align LangSmith metadata with OTel IDs where both are enabled.
-- [ ] Document local/dev setup in `docs/how_to_run.md`.
+- [x] Add OTel Collector config under `infra/` and export pipeline (OTLP).
+- [x] Bridge/align LangSmith metadata with OTel IDs where both are enabled.
+- [x] Document local/dev setup in `docs/how_to_run.md`.
 
 Acceptance criteria:
 

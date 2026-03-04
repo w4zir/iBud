@@ -458,3 +458,54 @@ Putting it all together:
   - LangSmith traces reveal step-by-step agent behaviour.
   - RAGAS scores measure answer quality and help prevent regressions.
 
+## Event warehouse (Phase 5)
+
+The runtime now writes structured events for historical analysis:
+
+- `agent_spans` records node-level spans (`classify_intent`, `retrieve_context`, `execute_tool`, etc.) with JSON attributes and latency.
+- `outcomes` records final task completion/escalation outcomes per conversation.
+- `evaluation_scores` stores asynchronous quality scores (`groundedness`, `hallucination`, `helpfulness`).
+- `sessions` includes analytics fields (`intent`, `escalated`, `resolved_at`, `csat_score`, `nps_score`).
+
+These writes are done as non-blocking async side effects, so chat responses are not delayed by analytics persistence.
+
+## Business/product KPIs (Phase 6)
+
+The computation layer in `backend/analytics/metrics.py` calculates:
+
+- Automation rate
+- Escalation rate
+- First-contact-resolution proxy
+- Tool success rate
+- Turns to resolution
+- Recovery rate
+
+SQL views under `infra/postgres/migrations/004_analytics_views.sql` provide repeatable query entry points (for example `v_automation_rate`, `v_escalation_rate`, `v_tool_success_rate`).
+
+## Asynchronous evaluation pipeline (Phase 7)
+
+Continuous scoring is separated from benchmark runs:
+
+- Benchmark/regression: `evaluation/ragas_eval.py`
+- Continuous async scoring: `backend/evaluation/pipeline.py`
+
+Flow:
+
+1. Sample completed sessions that do not yet have `evaluation_scores`.
+2. Reconstruct conversation inputs from session messages.
+3. Score groundedness/hallucination/helpfulness.
+4. Write to `evaluation_scores` with idempotency guard (skip duplicates).
+
+The pipeline is triggered via `POST /admin/eval/trigger` and is suitable for cron/worker scheduling.
+
+## OpenTelemetry alignment (Phase 8)
+
+OpenTelemetry instrumentation is available when `OTEL_ENABLED=true`:
+
+- Root `conversation` span in chat request handling.
+- Child spans in agent execution for intent, retrieval, tool calls, synthesis, and outcome.
+- FastAPI auto-instrumentation via `backend/observability/otel.py`.
+- Collector config at `infra/otel/otel-collector-config.yaml`.
+
+LangSmith and OTel are linked by injecting `otel_trace_id`/`otel_span_id` into LangSmith run metadata, enabling cross-system trace correlation.
+

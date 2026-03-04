@@ -63,3 +63,30 @@ The `evaluation/ragas_eval.py` script runs RAGAS over the WixQA test set by send
   - Optionally, `RAGAS_OPENAI_MODEL` or `RAGAS_CEREBRAS_MODEL` and `RAGAS_CEREBRAS_API_KEY` / `RAGAS_CEREBRAS_BASE_URL`
 
 These judge-specific env vars only affect RAGAS evaluation and do **not** change which model the agent uses at runtime.
+
+## Warehouse, metrics, and OTel
+
+### Q: How do I query business metrics like automation rate and escalation rate?
+
+Use the SQL views created in `infra/postgres/migrations/004_analytics_views.sql`:
+
+- `v_automation_rate`
+- `v_escalation_rate`
+- `v_tool_success_rate`
+- `v_hallucination_rate`
+
+You can also compute KPI values directly from Python using `backend/analytics/metrics.py`.
+
+### Q: How does the asynchronous evaluation pipeline work?
+
+`backend/evaluation/pipeline.py` samples completed sessions that do not yet have scores, reconstructs inputs from stored messages, computes groundedness/hallucination/helpfulness, and writes records into `evaluation_scores`. It is idempotent per `session_id` to avoid duplicate rows. Trigger it with `POST /admin/eval/trigger`.
+
+### Q: How do I enable OpenTelemetry tracing locally?
+
+Set:
+
+- `OTEL_ENABLED=true`
+- `OTEL_SERVICE_NAME=ibud-backend`
+- `OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317`
+
+Then run an OTel collector using `infra/otel/otel-collector-config.yaml`. The backend emits root `conversation` spans and child agent spans, and also attaches `otel_trace_id`/`otel_span_id` to LangSmith metadata when available.

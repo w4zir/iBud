@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import os
 import re
+import time
 from typing import Any, Dict, List
 
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -17,6 +19,8 @@ from ..observability.prometheus_metrics import (
     tool_calls,
     tool_outcome,
 )
+from ..observability.otel import get_tracer
+from ..observability.warehouse import record_span
 from ..rag.retriever import RetrievedDoc, Retriever
 from ..tools.faq_search import faq_search_tool
 from ..tools.order_lookup import order_lookup_tool
@@ -115,7 +119,42 @@ def _parse_planner_tool_calls(raw: str) -> List[Dict[str, Any]]:
     return []
 
 
+def _record_node_span(state: AgentState, span_name: str, *, latency_ms: float, **attrs: Any) -> None:
+    session_id = state.get("session_id")
+    trace_id = state.get("trace_id")
+    asyncio.create_task(
+        record_span(
+            session_id=session_id,
+            trace_id=trace_id,
+            span_name=span_name,
+            attributes=attrs,
+            latency_ms=latency_ms,
+        )
+    )
+
+
+def _start_otel_span(span_name: str):
+    tracer = get_tracer()
+    if tracer is None:
+        return None, None
+    context_manager = tracer.start_as_current_span(span_name)
+    span = context_manager.__enter__()
+    return context_manager, span
+
+
+def _finish_otel_span(context_manager: Any, span: Any, **attrs: Any) -> None:
+    if span is not None:
+        for key, value in attrs.items():
+            if value is None:
+                continue
+            span.set_attribute(key, value)
+    if context_manager is not None:
+        context_manager.__exit__(None, None, None)
+
+
 async def classify_intent(state: AgentState) -> AgentState:
+    start = time.perf_counter()
+    span_ctx, otel_span = _start_otel_span("intent_detection")
     llm = get_llm()
     user_text = _get_latest_user_message(state)
     messages = [
@@ -161,6 +200,19 @@ async def classify_intent(state: AgentState) -> AgentState:
         request_id=state.get("request_id"),
         intent=intent,
     )
+    _record_node_span(
+        state,
+        "classify_intent",
+        latency_ms=(time.perf_counter() - start) * 1000.0,
+        intent=intent,
+        status="ok",
+    )
+    _finish_otel_span(
+        span_ctx,
+        otel_span,
+        intent=intent,
+        latency_ms=(time.perf_counter() - start) * 1000.0,
+    )
     return next_state
 
 
@@ -175,6 +227,8 @@ def _intent_to_category(intent: Intent | None) -> str | None:
 
 
 async def retrieve_context(state: AgentState) -> AgentState:
+    start = time.perf_counter()
+    span_ctx, otel_span = _start_otel_span("retrieval")
     user_text = _get_latest_user_message(state)
     intent = state.get("intent")
     category = _intent_to_category(intent)
@@ -211,10 +265,28 @@ async def retrieve_context(state: AgentState) -> AgentState:
         category=category,
         docs_count=len(docs),
     )
+    _record_node_span(
+        state,
+        "retrieve_context",
+        latency_ms=(time.perf_counter() - start) * 1000.0,
+        intent=intent,
+        category=category,
+        docs_count=len(docs),
+        status="ok",
+    )
+    _finish_otel_span(
+        span_ctx,
+        otel_span,
+        intent=intent,
+        docs_returned=len(docs),
+        latency_ms=(time.perf_counter() - start) * 1000.0,
+    )
     return next_state
 
 
 async def plan_action(state: AgentState) -> AgentState:
+    start = time.perf_counter()
+    span_ctx, otel_span = _start_otel_span("response_planning")
     llm = get_llm()
     user_text = _get_latest_user_message(state)
     intent = state.get("intent")
@@ -263,10 +335,26 @@ async def plan_action(state: AgentState) -> AgentState:
         tool_calls_count=len(tool_calls),
         names=[t.get("name") for t in tool_calls],
     )
+    _record_node_span(
+        state,
+        "plan_action",
+        latency_ms=(time.perf_counter() - start) * 1000.0,
+        tool_calls_count=len(tool_calls),
+        tool_names=[t.get("name") for t in tool_calls],
+        status="ok",
+    )
+    _finish_otel_span(
+        span_ctx,
+        otel_span,
+        tool_calls_count=len(tool_calls),
+        latency_ms=(time.perf_counter() - start) * 1000.0,
+    )
     return next_state
 
 
 async def execute_tool(state: AgentState) -> AgentState:
+    start = time.perf_counter()
+    span_ctx, otel_span = _start_otel_span("tool_calls")
     calls = state.get("tool_calls") or []
     results: List[ToolResult] = []
 
@@ -355,10 +443,28 @@ async def execute_tool(state: AgentState) -> AgentState:
             if ticket_id:
                 next_state["ticket_id"] = str(ticket_id)
 
+    _record_node_span(
+        state,
+        "execute_tool",
+        latency_ms=(time.perf_counter() - start) * 1000.0,
+        tool_calls_count=len(calls),
+        success_count=sum(1 for r in results if r.get("success")),
+        failure_count=sum(1 for r in results if not r.get("success")),
+        status="ok",
+    )
+    _finish_otel_span(
+        span_ctx,
+        otel_span,
+        success_count=sum(1 for r in results if r.get("success")),
+        failure_count=sum(1 for r in results if not r.get("success")),
+        latency_ms=(time.perf_counter() - start) * 1000.0,
+    )
     return next_state
 
 
 async def synthesize_response(state: AgentState) -> AgentState:
+    start = time.perf_counter()
+    span_ctx, otel_span = _start_otel_span("response_synthesis")
     llm = get_llm()
     user_text = _get_latest_user_message(state)
     retrieved = state.get("retrieved_docs") or []
@@ -391,10 +497,25 @@ async def synthesize_response(state: AgentState) -> AgentState:
         session_id=state.get("session_id"),
         request_id=state.get("request_id"),
     )
+    _record_node_span(
+        state,
+        "synthesize_response",
+        latency_ms=(time.perf_counter() - start) * 1000.0,
+        response_len=len(answer),
+        status="ok",
+    )
+    _finish_otel_span(
+        span_ctx,
+        otel_span,
+        latency_ms=(time.perf_counter() - start) * 1000.0,
+        response_len=len(answer),
+    )
     return next_state
 
 
 async def check_escalation(state: AgentState) -> AgentState:
+    start = time.perf_counter()
+    span_ctx, otel_span = _start_otel_span("outcome_decision")
     llm = get_llm()
     user_text = _get_latest_user_message(state)
     tool_results = state.get("tool_results") or []
@@ -437,10 +558,25 @@ async def check_escalation(state: AgentState) -> AgentState:
         request_id=state.get("request_id"),
         should_escalate=bool(should),
     )
+    _record_node_span(
+        state,
+        "check_escalation",
+        latency_ms=(time.perf_counter() - start) * 1000.0,
+        should_escalate=bool(should),
+        status="ok",
+    )
+    _finish_otel_span(
+        span_ctx,
+        otel_span,
+        escalated=bool(should),
+        latency_ms=(time.perf_counter() - start) * 1000.0,
+    )
     return next_state
 
 
 async def create_ticket(state: AgentState) -> AgentState:
+    start = time.perf_counter()
+    span_ctx, otel_span = _start_otel_span("outcome")
     if not state.get("should_escalate"):
         log_event(
             "agent",
@@ -448,6 +584,20 @@ async def create_ticket(state: AgentState) -> AgentState:
             session_id=state.get("session_id"),
             request_id=state.get("request_id"),
             skipped="no_escalation",
+        )
+        _record_node_span(
+            state,
+            "create_ticket",
+            latency_ms=(time.perf_counter() - start) * 1000.0,
+            skipped="no_escalation",
+            status="ok",
+        )
+        _finish_otel_span(
+            span_ctx,
+            otel_span,
+            completed=True,
+            escalated=False,
+            latency_ms=(time.perf_counter() - start) * 1000.0,
         )
         return state
 
@@ -458,6 +608,20 @@ async def create_ticket(state: AgentState) -> AgentState:
             session_id=state.get("session_id"),
             request_id=state.get("request_id"),
             skipped="already_has_ticket",
+        )
+        _record_node_span(
+            state,
+            "create_ticket",
+            latency_ms=(time.perf_counter() - start) * 1000.0,
+            skipped="already_has_ticket",
+            status="ok",
+        )
+        _finish_otel_span(
+            span_ctx,
+            otel_span,
+            completed=True,
+            escalated=True,
+            latency_ms=(time.perf_counter() - start) * 1000.0,
         )
         return state
 
@@ -498,6 +662,20 @@ async def create_ticket(state: AgentState) -> AgentState:
         )
     )
     next_state["tool_results"] = tool_results
+    _record_node_span(
+        state,
+        "create_ticket",
+        latency_ms=(time.perf_counter() - start) * 1000.0,
+        ticket_id=next_state.get("ticket_id"),
+        status="ok",
+    )
+    _finish_otel_span(
+        span_ctx,
+        otel_span,
+        completed=True,
+        escalated=bool(next_state.get("ticket_id")),
+        latency_ms=(time.perf_counter() - start) * 1000.0,
+    )
     return next_state
 
 

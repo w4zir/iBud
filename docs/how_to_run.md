@@ -51,6 +51,11 @@ The primary workflow uses Docker Compose for infrastructure (Postgres, Redis, Ol
 
   **Request correlation:** Every request is assigned a request ID. You can provide your own via `X-Request-ID`; otherwise the backend generates one and returns it in the response headers.
 
+  **OpenTelemetry (optional):** To emit OTel traces, set:
+  - `OTEL_ENABLED=true`
+  - `OTEL_SERVICE_NAME=ibud-backend`
+  - `OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317`
+
 ## 2. Start Docker services
 
 You can start different slices of the system depending on what you are working on.
@@ -231,6 +236,54 @@ Results are written under `evaluation/results/` as `run_<timestamp>.json`, inclu
        - For Cerebras: `RAGAS_CEREBRAS_MODEL`, `RAGAS_CEREBRAS_API_KEY`, `RAGAS_CEREBRAS_BASE_URL`.
 
    These RAGAS-specific env vars only affect evaluation runs and do not change which model the agent uses for live chats.
+
+### 7.4 Warehouse migrations (Phases 5-6)
+
+Apply the new analytics/warehouse migrations in order:
+
+```powershell
+Get-Content infra/postgres/migrations/003_observability_warehouse.sql | docker compose exec -T postgres psql -U $env:POSTGRES_USER -d $env:POSTGRES_DB
+Get-Content infra/postgres/migrations/004_analytics_views.sql | docker compose exec -T postgres psql -U $env:POSTGRES_USER -d $env:POSTGRES_DB
+```
+
+These migrations add:
+- Warehouse tables: `agent_spans`, `outcomes`, `evaluation_scores`
+- Session analytics columns (`intent`, `escalated`, `resolved_at`, `csat_score`, `nps_score`)
+- Analytics SQL views for KPI queries
+
+### 7.5 Asynchronous evaluation pipeline
+
+Continuous scoring is separated from `evaluation/ragas_eval.py` (benchmark runner).
+
+- Manual trigger:
+
+```powershell
+curl -X POST "http://localhost:8000/admin/eval/trigger?limit=25&min_age_minutes=5"
+```
+
+- Cron-style example (runs every 30 minutes):
+
+```text
+*/30 * * * * curl -X POST "http://backend:8000/admin/eval/trigger?limit=25&min_age_minutes=5"
+```
+
+### 7.6 OpenTelemetry collector (Phase 8)
+
+An OTel collector config is provided at `infra/otel/otel-collector-config.yaml`.
+
+Minimal local run example:
+
+```powershell
+docker run --rm -p 4317:4317 -p 4318:4318 -p 9464:9464 `
+  -v ${PWD}/infra/otel/otel-collector-config.yaml:/etc/otelcol/config.yaml `
+  otel/opentelemetry-collector:latest `
+  --config /etc/otelcol/config.yaml
+```
+
+When enabled, the backend emits:
+- Root `conversation` spans from chat handling
+- Child spans for `intent_detection`, `retrieval`, `tool_calls`, `response_synthesis`, and `outcome` steps
+- OTel trace IDs are also attached to LangSmith metadata for cross-correlation
 
 ## 8. Quick verification checklist
 

@@ -4,6 +4,7 @@ import os
 from typing import Any, Dict
 
 from ..agent.state import AgentState
+from .otel import get_current_trace_ids
 
 
 def _env_flag(name: str) -> bool:
@@ -42,11 +43,14 @@ def build_run_config(state: AgentState, *, thread_id: str | None = None) -> Dict
     if not is_tracing_enabled():
         return config
 
+    otel_trace_id, otel_span_id = get_current_trace_ids()
     metadata: Dict[str, Any] = {
         "session_id": state.get("session_id"),
         "user_id": state.get("user_id"),
         "request_id": state.get("request_id"),
-        "trace_id": state.get("trace_id"),
+        "trace_id": state.get("trace_id") or otel_trace_id,
+        "otel_trace_id": otel_trace_id,
+        "otel_span_id": otel_span_id,
         "intent": state.get("intent"),
         "phase": "6",
         "component": "agent_graph",
