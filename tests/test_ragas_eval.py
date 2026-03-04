@@ -118,11 +118,10 @@ def test_run_ragas_eval_handles_missing_metric_columns(tmp_path, monkeypatch):
 
     summary = ragas_eval.run_ragas_eval("http://localhost:8000", limit=None)
     assert "metrics" in summary
-    # Only the metrics present in the dataframe should be included.
-    assert summary["metrics"] == {
-        "faithfulness": 0.7,
-        "answer_relevancy": 0.6,
-    }
+    assert summary["metrics"]["faithfulness"] == 0.7
+    assert summary["metrics"]["answer_relevancy"] == 0.6
+    assert summary["metrics"]["context_precision"] is None
+    assert summary["metrics"]["context_recall"] is None
 
 
 def test_load_testset_supports_index_selection(tmp_path, monkeypatch):
@@ -414,3 +413,162 @@ def test_use_local_cache_miss_calls_backend_and_writes_cache(tmp_path, monkeypat
     assert "Q1" in cache_data
     assert cache_data["Q1"]["response"] == "model answer"
     assert cache_data["Q1"]["retrieved_contexts"] == ["ctx"]
+
+
+def test_nan_scores_excluded_from_aggregation(tmp_path, monkeypatch):
+    rows = [
+        {
+            "id": "expertwritten-0",
+            "split": "expertwritten",
+            "question": "Q1",
+            "answer": "A1",
+            "supporting_article": "S1",
+        },
+        {
+            "id": "expertwritten-1",
+            "split": "expertwritten",
+            "question": "Q2",
+            "answer": "A2",
+            "supporting_article": "S2",
+        },
+    ]
+    testset_path = _write_testset(tmp_path, rows)
+    monkeypatch.setattr(ragas_eval, "TESTSET_PATH", testset_path)
+    monkeypatch.setattr(ragas_eval, "RESULTS_DIR", tmp_path)
+
+    def fake_backend_calls(backend_url: str, loaded_rows: List[Dict[str, Any]], use_local: bool = False):
+        return {
+            "user_input": [r["question"] for r in loaded_rows],
+            "response": ["r1", "r2"],
+            "retrieved_contexts": [["ctx1"], ["ctx2"]],
+            "reference": [r["answer"] for r in loaded_rows],
+            "split": [r["split"] for r in loaded_rows],
+        }
+
+    def fake_evaluate(dataset, show_progress=True):
+        df = pd.DataFrame(
+            [
+                {
+                    "faithfulness": 0.8,
+                    "answer_relevancy": 0.7,
+                    "context_precision": float("nan"),
+                    "context_recall": 0.6,
+                    "split": "expertwritten",
+                },
+                {
+                    "faithfulness": float("nan"),
+                    "answer_relevancy": 0.9,
+                    "context_precision": 0.5,
+                    "context_recall": float("nan"),
+                    "split": "expertwritten",
+                },
+            ]
+        )
+        return DummyResult(df)
+
+    monkeypatch.setattr(ragas_eval, "_run_backend_calls", fake_backend_calls)
+    monkeypatch.setattr(ragas_eval, "evaluate", fake_evaluate)
+
+    summary = ragas_eval.run_ragas_eval("http://localhost:8000", limit=None)
+    assert summary["metrics"]["faithfulness"] == 0.8
+    assert summary["metrics"]["answer_relevancy"] == 0.8
+    assert summary["metrics"]["context_precision"] == 0.5
+    assert summary["metrics"]["context_recall"] == 0.6
+    assert summary["valid_counts"]["faithfulness"] == 1
+    assert summary["valid_counts"]["answer_relevancy"] == 2
+
+
+def test_all_nan_scores_produce_none_metric(tmp_path, monkeypatch):
+    rows = [
+        {
+            "id": "expertwritten-0",
+            "split": "expertwritten",
+            "question": "Q1",
+            "answer": "A1",
+            "supporting_article": "S1",
+        }
+    ]
+    testset_path = _write_testset(tmp_path, rows)
+    monkeypatch.setattr(ragas_eval, "TESTSET_PATH", testset_path)
+    monkeypatch.setattr(ragas_eval, "RESULTS_DIR", tmp_path)
+
+    def fake_backend_calls(backend_url: str, loaded_rows: List[Dict[str, Any]], use_local: bool = False):
+        return {
+            "user_input": [rows[0]["question"]],
+            "response": ["model answer"],
+            "retrieved_contexts": [["ctx"]],
+            "reference": [rows[0]["answer"]],
+            "split": [rows[0]["split"]],
+        }
+
+    def fake_evaluate(dataset, show_progress=True):
+        return DummyResult(
+            pd.DataFrame(
+                [
+                    {
+                        "faithfulness": float("nan"),
+                        "answer_relevancy": float("nan"),
+                        "context_precision": float("nan"),
+                        "context_recall": float("nan"),
+                        "split": "expertwritten",
+                    }
+                ]
+            )
+        )
+
+    monkeypatch.setattr(ragas_eval, "_run_backend_calls", fake_backend_calls)
+    monkeypatch.setattr(ragas_eval, "evaluate", fake_evaluate)
+
+    summary = ragas_eval.run_ragas_eval("http://localhost:8000", limit=None)
+    assert summary["metrics"]["faithfulness"] is None
+    assert summary["metrics"]["answer_relevancy"] is None
+    assert summary["valid_counts"]["faithfulness"] == 0
+    assert summary["valid_counts"]["answer_relevancy"] == 0
+
+
+def test_pass_fail_thresholds_in_summary(tmp_path, monkeypatch):
+    rows = [
+        {
+            "id": "expertwritten-0",
+            "split": "expertwritten",
+            "question": "Q1",
+            "answer": "A1",
+            "supporting_article": "S1",
+        }
+    ]
+    testset_path = _write_testset(tmp_path, rows)
+    monkeypatch.setattr(ragas_eval, "TESTSET_PATH", testset_path)
+    monkeypatch.setattr(ragas_eval, "RESULTS_DIR", tmp_path)
+
+    def fake_backend_calls(backend_url: str, loaded_rows: List[Dict[str, Any]], use_local: bool = False):
+        return {
+            "user_input": [rows[0]["question"]],
+            "response": ["model answer"],
+            "retrieved_contexts": [["ctx"]],
+            "reference": [rows[0]["answer"]],
+            "split": [rows[0]["split"]],
+        }
+
+    def fake_evaluate(dataset, show_progress=True):
+        return DummyResult(
+            pd.DataFrame(
+                [
+                    {
+                        "faithfulness": 0.2,
+                        "answer_relevancy": 0.9,
+                        "context_precision": 0.8,
+                        "context_recall": 0.7,
+                        "split": "expertwritten",
+                    }
+                ]
+            )
+        )
+
+    monkeypatch.setattr(ragas_eval, "_run_backend_calls", fake_backend_calls)
+    monkeypatch.setattr(ragas_eval, "evaluate", fake_evaluate)
+
+    summary = ragas_eval.run_ragas_eval("http://localhost:8000", limit=None)
+    assert summary["passed"] is False
+    assert "thresholds" in summary
+    assert summary["threshold_details"]["min_valid_rows"]["passed"] is True
+    assert summary["threshold_details"]["min_faithfulness"]["passed"] is False

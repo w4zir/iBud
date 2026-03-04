@@ -7,11 +7,18 @@ from typing import Any, Dict, List, Optional
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ..config import get_embedding_model
+from ..config import log_event
 from ..db.models import Document
 from ..db.postgres import async_session_factory
 from ..db.redis_client import CacheKeyParts, build_cache_key, get_cached, set_cached
-from ..observability.prometheus_metrics import cache_hits, retrieval_latency
+from ..observability.prometheus_metrics import (
+    cache_hits,
+    db_latency,
+    embedding_latency,
+    error_count,
+    rerank_latency,
+    retrieval_latency,
+)
 from .embeddings import EmbeddingClient
 
 
@@ -70,9 +77,23 @@ class Retriever:
                 return [RetrievedDoc(**item) for item in cached]  # type: ignore[arg-type]
 
         start_time = time.perf_counter()
-        query_vector = self._embedding_client.embed_query(query)
+        embedding_start = time.perf_counter()
+        try:
+            query_vector = self._embedding_client.embed_query(query)
+        except Exception:
+            try:
+                error_count.labels(error_type="embedding_failure", component="retriever").inc()
+            except Exception:
+                pass
+            raise
+        finally:
+            try:
+                embedding_latency.observe(time.perf_counter() - embedding_start)
+            except Exception:
+                pass
 
         async with async_session_factory() as session:
+            db_start = time.perf_counter()
             docs = await self._similarity_search(
                 session=session,
                 query_vector=query_vector,
@@ -80,6 +101,12 @@ class Retriever:
                 category=category,
                 tier_filter=tier_filter,
             )
+            try:
+                db_latency.labels(operation="similarity_search").observe(
+                    time.perf_counter() - db_start
+                )
+            except Exception:
+                pass
 
         docs = await type(self)._maybe_expand_parents(docs)
 
@@ -91,6 +118,16 @@ class Retriever:
             retrieval_latency.observe(latency)
         except Exception:  # pragma: no cover - defensive
             pass
+        log_event(
+            "retriever",
+            "search_complete",
+            query_len=len(query),
+            docs_count=len(docs),
+            latency_ms=round(latency * 1000, 2),
+            category=category,
+            tier_filter=tier_filter,
+            cache_used=use_cache,
+        )
 
         if cache_key and use_cache and docs:
             serializable = [asdict(d) for d in docs]
@@ -204,9 +241,18 @@ class Retriever:
             return docs
 
         try:
+            start = time.perf_counter()
             pairs = [(query, d.content) for d in docs]
             scores = self._cross_encoder.predict(pairs)
+            try:
+                rerank_latency.observe(time.perf_counter() - start)
+            except Exception:
+                pass
         except Exception:  # pragma: no cover - defensive
+            try:
+                error_count.labels(error_type="rerank_failure", component="retriever").inc()
+            except Exception:
+                pass
             return docs
 
         rescored: List[RetrievedDoc] = []

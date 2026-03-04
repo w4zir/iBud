@@ -47,7 +47,9 @@ The primary workflow uses Docker Compose for infrastructure (Postgres, Redis, Ol
    - `REDIS_PORT=6379`
    - `REDIS_CACHE_TTL=300` (seconds)
 
-   **Backend debug logging:** Set `DEBUG=true` in `.env` to print minimal flow logs to the backend console (e.g. `[DEBUG][chat]` and `[DEBUG][agent]`). Logs include request/session metadata, cache hit/miss, agent stage names, and tool name + parameters only. Default is `false`; leave unset or `false` in production.
+  **Backend structured logging:** Logs are emitted as JSON with stable fields (for example `request_id`, `session_id`, `user_id`, `intent`, `tool_name`, `status`, `latency_ms`, `error_type`). Set `DEBUG=true` in `.env` for debug-level events; default is `false` (INFO level) for normal runs.
+
+  **Request correlation:** Every request is assigned a request ID. You can provide your own via `X-Request-ID`; otherwise the backend generates one and returns it in the response headers.
 
 ## 2. Start Docker services
 

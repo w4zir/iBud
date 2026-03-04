@@ -45,6 +45,8 @@ class AgentState(TypedDict, total=False):
 
     session_id: Optional[str]
     user_id: Optional[str]
+    request_id: Optional[str]
+    trace_id: Optional[str]
     messages: List[Dict[str, Any]]
     intent: Optional[Intent]
     retrieved_docs: List[RetrievedDocState]

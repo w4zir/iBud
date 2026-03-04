@@ -30,6 +30,7 @@ Unit tests live throughout `tests/` and cover:
 - Redis caching helpers (`tests/test_redis_client.py`)
 - Seed scripts (`tests/test_seed_mock_data.py`)
 - Phase 6 observability and tracing (`tests/test_langsmith_tracing.py`, `tests/test_observability_metrics.py`)
+- Request-ID middleware (`tests/test_request_id_middleware.py`)
 - Evaluation utilities (`tests/test_build_wixqa_testset.py`, `tests/test_ragas_eval.py`)
 
 Run all unit tests (integration tests are excluded by default via `pytest.ini`):
@@ -143,6 +144,10 @@ You should see a chronological list of `{role, content, created_at}` entries for
    - `retrieval_latency_seconds_*` buckets
    - `redis_cache_hits_total`
    - `agent_tool_calls_total`
+   - `tool_outcome_total`
+   - `intent_distribution_total`
+   - `task_outcome_total`
+   - `errors_total`
    - `escalations_total`
    - `llm_tokens_total`
 
@@ -197,6 +202,19 @@ You should see a chronological list of `{role, content, created_at}` entries for
 
    - Overall scores for `faithfulness`, `answer_relevancy`, `context_precision`, `context_recall`
    - Per-split breakdown for ExpertWritten vs Simulated questions
+
+### 7.1 Evaluation result JSON schema
+
+Each `evaluation/results/run_<timestamp>.json` file includes:
+
+- `metrics`: overall metric means (`faithfulness`, `answer_relevancy`, `context_precision`, `context_recall`), with `null` when no valid values are available
+- `by_split`: per-split metric means (`expertwritten`, `simulated`)
+- `num_rows`: number of rows that reached the evaluator dataframe
+- `valid_counts`: non-NaN value count per metric used for aggregation
+- `failed_rows`: per-question failures (for example backend call or evaluator failure) with error reason
+- `thresholds`: configured pass/fail thresholds
+- `threshold_details`: actual vs required values for each threshold check
+- `passed`: overall boolean pass/fail for the run
 
 5. (Optional) Configure a separate judge model/provider for RAGAS:
 

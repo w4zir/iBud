@@ -23,7 +23,8 @@ At a high level the system consists of:
     - `GET /sessions/{session_id}/history` — session history.
     - `GET /health` — health and dependency checks.
     - `admin` routes for maintenance and debugging.
-  - Wires up CORS and global exception handlers, increments Prometheus metrics on validation and generic errors.
+  - Wires up CORS, request-id middleware (`X-Request-ID` propagation), and global exception handlers.
+  - Adds request correlation metadata to logs and response headers.
 
 - **Agent (`backend/agent/`)**
   - LangGraph state machine (`graph.py`) implementing the multi-step agent:
@@ -54,8 +55,8 @@ At a high level the system consists of:
   - Redis client in `redis_client.py` for retrieval caching.
 
 - **Observability (`backend/observability/`)**
-  - `prometheus_metrics.py` — counters and histograms for chat requests, latency, retrieval latency, cache hits, tool calls, escalations, and token usage.
-  - `langsmith_tracer.py` — attaches LangSmith tracing metadata to agent runs when enabled via environment variables.
+  - `prometheus_metrics.py` — counters and histograms for chat requests, latency, retrieval latency, cache hits, tool calls, tool outcomes, intent distribution, task outcomes, typed errors, embedding/rerank latency, DB/Redis latency, escalations, and token usage.
+  - `langsmith_tracer.py` — attaches LangSmith tracing metadata (including `request_id` / `trace_id` when available) to agent runs when enabled via environment variables.
 
 - **Evaluation (`evaluation/`)**
   - Builds an evaluation testset based on WixQA.
@@ -97,10 +98,12 @@ When a user sends a message through the Streamlit UI:
      - `message` text.
 2. **FastAPI route**
    - Validates the request body.
+  - Generates or propagates `request_id` from `X-Request-ID`.
    - Creates or loads a `Session` row.
    - Appends a `Message` row with `role="user"`.
    - Builds an initial `AgentState` containing:
      - Messages, `session_id`, `user_id`, and any contextual metadata.
+     - Correlation fields such as `request_id`.
 3. **LangGraph agent (`run_agent`)**
    - The compiled graph from `build_agent_graph()` is invoked asynchronously with the current state and LangSmith run config.
    - The state flows through the following nodes:

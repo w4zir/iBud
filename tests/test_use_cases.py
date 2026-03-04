@@ -1,5 +1,6 @@
 import json
 
+import pytest
 from fastapi.testclient import TestClient
 
 from backend.main import app
@@ -8,6 +9,7 @@ from backend.main import app
 client = TestClient(app)
 
 
+@pytest.mark.integration
 def test_chat_creates_session_and_persists_messages(monkeypatch):
     def fake_run_agent(state, thread_id=None):  # type: ignore[arg-type]
         new_state = dict(state)
@@ -32,6 +34,7 @@ def test_chat_creates_session_and_persists_messages(monkeypatch):
     assert data["response"] == "Stubbed response"
 
 
+@pytest.mark.integration
 def test_chat_cache_same_query(monkeypatch):
     calls = {"count": 0}
 
@@ -68,6 +71,7 @@ def test_chat_cache_same_query(monkeypatch):
     assert second_data["response"] == "Response 1"
 
 
+@pytest.mark.integration
 def test_sessions_history_endpoint(monkeypatch):
     def fake_run_agent(state, thread_id=None):  # type: ignore[arg-type]
         new_state = dict(state)

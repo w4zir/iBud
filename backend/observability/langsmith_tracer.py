@@ -45,6 +45,8 @@ def build_run_config(state: AgentState, *, thread_id: str | None = None) -> Dict
     metadata: Dict[str, Any] = {
         "session_id": state.get("session_id"),
         "user_id": state.get("user_id"),
+        "request_id": state.get("request_id"),
+        "trace_id": state.get("trace_id"),
         "intent": state.get("intent"),
         "phase": "6",
         "component": "agent_graph",

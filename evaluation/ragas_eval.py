@@ -18,9 +18,11 @@ For each question, it:
 import argparse
 import inspect
 import json
+import logging
 import os
 import random
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List
 
@@ -36,22 +38,47 @@ ROOT = Path(__file__).resolve().parent
 TESTSET_PATH = ROOT / "wixqa_testset.json"
 RESULTS_DIR = ROOT / "results"
 AGENT_RESPONSES_PATH = ROOT / "agent_responses.json"
+METRIC_NAMES = [
+    "faithfulness",
+    "answer_relevancy",
+    "context_precision",
+    "context_recall",
+]
+DEFAULT_THRESHOLDS: Dict[str, float] = {
+    "min_valid_rows": 1.0,
+    "min_faithfulness": 0.3,
+    "min_answer_relevancy": 0.3,
+}
 
 
-def _is_debug_enabled() -> bool:
-    """Return True if DEBUG env is set to a truthy value (true, 1, yes)."""
+class _StructuredFormatter(logging.Formatter):
+    def format(self, record: logging.LogRecord) -> str:
+        payload = {
+            "ts": datetime.now(timezone.utc).isoformat(),
+            "level": record.levelname,
+            "logger": record.name,
+            "msg": record.getMessage(),
+        }
+        extra_fields = getattr(record, "structured_extra", {})
+        if isinstance(extra_fields, dict):
+            payload.update(extra_fields)
+        return json.dumps(payload, ensure_ascii=True)
+
+
+def _build_logger() -> logging.Logger:
+    logger = logging.getLogger("evaluation.ragas_eval")
+    if logger.handlers:
+        return logger
+    handler = logging.StreamHandler()
+    handler.setFormatter(_StructuredFormatter())
+    logger.addHandler(handler)
+    logger.propagate = False
     raw = (os.getenv("DEBUG") or "").strip().lower()
-    return raw in ("true", "1", "yes")
+    logger.setLevel(logging.DEBUG if raw in ("true", "1", "yes") else logging.INFO)
+    return logger
 
 
-def _debug_log(step: str, message: str, **kwargs: object) -> None:
-    """Print step log to terminal only when DEBUG is enabled."""
-    if not _is_debug_enabled():
-        return
-    parts = [f"[DEBUG][{step}]", message]
-    if kwargs:
-        parts.append(" ".join(f"{k}={v!r}" for k, v in kwargs.items()))
-    print(" ".join(parts))
+LOGGER = _build_logger()
 
 
 def _load_agent_responses_cache(path: Path | None = None) -> Dict[str, Dict[str, Any]]:
@@ -91,13 +118,20 @@ def _load_env_file() -> None:
     for candidate in candidate_paths:
         if candidate.exists():
             load_dotenv(candidate, override=False)
-            _debug_log("env", "loaded .env file", path=str(candidate))
+            LOGGER.debug(
+                "loaded .env file",
+                extra={"structured_extra": {"component": "env", "path": str(candidate)}},
+            )
 
             return
-    _debug_log(
-        "env",
+    LOGGER.debug(
         "no .env file found",
-        tried=",".join(str(p) for p in candidate_paths),
+        extra={
+            "structured_extra": {
+                "component": "env",
+                "tried": ",".join(str(p) for p in candidate_paths),
+            }
+        },
     )
     
 
@@ -231,7 +265,17 @@ def _load_testset(
     if limit is not None and limit > 0:
         rows = rows[:limit]
 
-    _debug_log("testset", "loaded rows", count=len(rows), limit=limit, indices=indices)
+    LOGGER.debug(
+        "loaded rows",
+        extra={
+            "structured_extra": {
+                "component": "testset",
+                "count": len(rows),
+                "limit": limit,
+                "indices": indices,
+            }
+        },
+    )
     return rows
 
 
@@ -239,7 +283,7 @@ def _run_backend_calls(
     backend_url: str,
     rows: List[Dict[str, Any]],
     use_local: bool = False,
-) -> Dict[str, List[Any]]:
+) -> tuple[Dict[str, List[Any]], List[Dict[str, Any]]]:
     backend_url = backend_url.rstrip("/")
 
     user_inputs: List[str] = []
@@ -247,10 +291,21 @@ def _run_backend_calls(
     retrieved_contexts: List[List[str]] = []
     references: List[str] = []
     splits: List[str] = []
+    failed_rows: List[Dict[str, Any]] = []
 
     cache: Dict[str, Dict[str, Any]] = _load_agent_responses_cache() if use_local else {}
 
-    _debug_log("backend", "running backend calls", url=backend_url, num_questions=len(rows), use_local=use_local)
+    LOGGER.debug(
+        "running backend calls",
+        extra={
+            "structured_extra": {
+                "component": "backend",
+                "url": backend_url,
+                "num_questions": len(rows),
+                "use_local": use_local,
+            }
+        },
+    )
 
     # Chat endpoint can be slow (RAG + LLM); use a long timeout per request.
     with httpx.Client(timeout=180.0) as client:
@@ -267,7 +322,15 @@ def _run_backend_calls(
                     article = row.get("supporting_article") or ""
                     if article:
                         ctx = [str(article)]
-                _debug_log("backend", "cache hit", question_preview=q[:50] + "..." if len(q) > 50 else q)
+                LOGGER.debug(
+                    "cache hit",
+                    extra={
+                        "structured_extra": {
+                            "component": "backend",
+                            "question_preview": q[:50] + "..." if len(q) > 50 else q,
+                        }
+                    },
+                )
                 user_inputs.append(q)
                 responses.append(resp_text)
                 retrieved_contexts.append(ctx)
@@ -275,16 +338,38 @@ def _run_backend_calls(
                 splits.append(str(row.get("split") or "unknown"))
                 continue
 
-            resp = client.post(
-                f"{backend_url}/chat/",
-                json={
-                    "session_id": None,
-                    "user_id": "ragas-eval",
-                    "message": q,
-                },
-            )
-            resp.raise_for_status()
-            data = resp.json()
+            try:
+                resp = client.post(
+                    f"{backend_url}/chat/",
+                    json={
+                        "session_id": None,
+                        "user_id": "ragas-eval",
+                        "message": q,
+                    },
+                )
+                resp.raise_for_status()
+                data = resp.json()
+                if not isinstance(data, dict):
+                    raise ValueError("Backend response is not a JSON object.")
+            except Exception as exc:
+                failed_rows.append(
+                    {
+                        "question": q,
+                        "split": str(row.get("split") or "unknown"),
+                        "error": str(exc),
+                    }
+                )
+                LOGGER.debug(
+                    "backend call failed",
+                    extra={
+                        "structured_extra": {
+                            "component": "backend",
+                            "question_preview": q[:50] + "..." if len(q) > 50 else q,
+                            "error": str(exc),
+                        }
+                    },
+                )
+                continue
 
             resp_text = str(data.get("response") or "")
             srcs = data.get("sources") or []
@@ -297,7 +382,15 @@ def _run_backend_calls(
             if use_local:
                 cache[q] = {"response": resp_text, "retrieved_contexts": ctx}
                 _save_agent_responses_cache(cache)
-                _debug_log("backend", "cache miss, saved", question_preview=q[:50] + "..." if len(q) > 50 else q)
+                LOGGER.debug(
+                    "cache miss, saved",
+                    extra={
+                        "structured_extra": {
+                            "component": "backend",
+                            "question_preview": q[:50] + "..." if len(q) > 50 else q,
+                        }
+                    },
+                )
 
             user_inputs.append(q)
             responses.append(resp_text)
@@ -305,13 +398,16 @@ def _run_backend_calls(
             references.append((row.get("answer") or "").strip())
             splits.append(str(row.get("split") or "unknown"))
 
-    return {
-        "user_input": user_inputs,
-        "response": responses,
-        "retrieved_contexts": retrieved_contexts,
-        "reference": references,
-        "split": splits,
-    }
+    return (
+        {
+            "user_input": user_inputs,
+            "response": responses,
+            "retrieved_contexts": retrieved_contexts,
+            "reference": references,
+            "split": splits,
+        },
+        failed_rows,
+    )
 
 
 def run_ragas_eval(
@@ -346,7 +442,12 @@ def run_ragas_eval(
     if not rows:
         raise RuntimeError(f"No rows loaded from {TESTSET_PATH}")
 
-    payload = _run_backend_calls(backend_url, rows, use_local=use_local)
+    backend_result = _run_backend_calls(backend_url, rows, use_local=use_local)
+    if isinstance(backend_result, tuple):
+        payload, failed_rows = backend_result
+    else:  # backward compatibility for tests monkeypatching legacy return shape
+        payload = backend_result
+        failed_rows = []
     dataset = Dataset.from_dict(payload)
  
     # Ensure .env is loaded so we can reuse the same provider
@@ -358,64 +459,175 @@ def run_ragas_eval(
     # require OPENAI_API_KEY even when using Cerebras).
     llm = _build_ragas_llm_from_env()
     provider = (os.getenv("RAGAS_LLM_PROVIDER") or os.getenv("LLM_PROVIDER") or "default").lower()
-    _debug_log("ragas", "evaluator model selection", provider=provider, llm_configured=llm is not None)
+    LOGGER.debug(
+        "evaluator model selection",
+        extra={
+            "structured_extra": {
+                "component": "ragas",
+                "provider": provider,
+                "llm_configured": llm is not None,
+            }
+        },
+    )
 
     # Keep compatibility with tests that monkeypatch `evaluate` with a
     # simpler signature (dataset, show_progress=True) by only passing
     # `llm` when the callable actually accepts it.
     sig = inspect.signature(evaluate)
-    if llm is not None and "llm" in sig.parameters:
-        _debug_log("ragas", "starting ragas evaluate", llm=True)
-        result = evaluate(
-            dataset,
-            llm=llm,
-            show_progress=True,
+    try:
+        if llm is not None and "llm" in sig.parameters:
+            LOGGER.debug(
+                "starting ragas evaluate",
+                extra={"structured_extra": {"component": "ragas", "llm": True}},
+            )
+            result = evaluate(
+                dataset,
+                llm=llm,
+                show_progress=True,
+            )
+        else:
+            # Fallback to previous behaviour; this may use OpenAI directly.
+            LOGGER.debug(
+                "starting ragas evaluate",
+                extra={"structured_extra": {"component": "ragas", "llm": False}},
+            )
+            result = evaluate(
+                dataset,
+                show_progress=True,
+            )
+    except Exception as exc:
+        failed_rows.append(
+            {
+                "question": "__evaluation__",
+                "split": "n/a",
+                "error": f"ragas_evaluate_failed: {exc}",
+            }
         )
-    else:
-        # Fallback to previous behaviour; this may use OpenAI directly.
-        _debug_log("ragas", "starting ragas evaluate", llm=False)
-        result = evaluate(
-            dataset,
-            show_progress=True,
-        )
+        RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+        ts = int(time.time())
+        summary_path = RESULTS_DIR / f"run_{ts}.json"
+        summary: Dict[str, Any] = {
+            "metrics": {metric: None for metric in METRIC_NAMES},
+            "by_split": {},
+            "num_rows": 0,
+            "valid_counts": {metric: 0 for metric in METRIC_NAMES},
+            "failed_rows": failed_rows,
+            "thresholds": DEFAULT_THRESHOLDS,
+            "threshold_details": {
+                "min_valid_rows": {
+                    "required": int(DEFAULT_THRESHOLDS["min_valid_rows"]),
+                    "actual": 0,
+                    "passed": False,
+                }
+            },
+            "passed": False,
+            "backend_url": backend_url,
+            "timestamp": ts,
+        }
+        with summary_path.open("w", encoding="utf-8") as f:
+            json.dump(summary, f, ensure_ascii=False, indent=2)
+        return summary
 
-    _debug_log("ragas", "evaluate done", dataset_rows=len(dataset))
+    LOGGER.debug(
+        "evaluate done",
+        extra={"structured_extra": {"component": "ragas", "dataset_rows": len(dataset)}},
+    )
 
     # EvaluationResult exposes to_pandas/save_json; use both for flexibility.
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     ts = int(time.time())
     summary_path = RESULTS_DIR / f"run_{ts}.json"
-    _debug_log("results", "writing summary", path=str(summary_path))
+    LOGGER.debug(
+        "writing summary",
+        extra={"structured_extra": {"component": "results", "path": str(summary_path)}},
+    )
 
     try:
         df = result.to_pandas()
-        # Overall metric means.
-        metric_means: Dict[str, float] = {}
-        for metric in ["faithfulness", "answer_relevancy", "context_precision", "context_recall"]:
+        # Overall metric means (NaN-safe) + valid counts.
+        metric_means: Dict[str, float | None] = {}
+        valid_counts: Dict[str, int] = {}
+        for metric in METRIC_NAMES:
             if metric in df.columns:
-                metric_means[metric] = float(df[metric].mean())
+                series = df[metric].dropna()
+                valid_counts[metric] = int(len(series))
+                metric_means[metric] = float(series.mean()) if len(series) > 0 else None
+            else:
+                valid_counts[metric] = 0
+                metric_means[metric] = None
+
+        valid_row_count = 0
+        present_metric_cols = [m for m in METRIC_NAMES if m in df.columns]
+        if present_metric_cols:
+            valid_row_count = int(len(df[present_metric_cols].dropna(how="all")))
 
         # Per-split breakdown.
-        split_breakdown: Dict[str, Dict[str, float]] = {}
+        split_breakdown: Dict[str, Dict[str, float | None]] = {}
         if "split" in df.columns:
             for split in df["split"].unique():
                 sub = df[df["split"] == split]
                 split_breakdown[str(split)] = {
-                    metric: float(sub[metric].mean())
-                    for metric in metric_means.keys()
-                    if metric in sub.columns
+                    metric: (
+                        float(sub[metric].dropna().mean())
+                        if metric in sub.columns and len(sub[metric].dropna()) > 0
+                        else None
+                    )
+                    for metric in METRIC_NAMES
                 }
+
+        thresholds = DEFAULT_THRESHOLDS.copy()
+        min_valid_rows = int(thresholds["min_valid_rows"])
+        threshold_details: Dict[str, Dict[str, Any]] = {
+            "min_valid_rows": {
+                "required": min_valid_rows,
+                "actual": valid_row_count,
+                "passed": valid_row_count >= min_valid_rows,
+            }
+        }
+        for metric in ("faithfulness", "answer_relevancy"):
+            required_key = f"min_{metric}"
+            required_value = float(thresholds.get(required_key, 0.0))
+            actual_value = metric_means.get(metric)
+            passed_metric = (
+                actual_value is not None and float(actual_value) >= required_value
+            )
+            threshold_details[required_key] = {
+                "required": required_value,
+                "actual": actual_value,
+                "passed": passed_metric,
+            }
+
+        passed = all(item["passed"] for item in threshold_details.values())
 
         summary: Dict[str, Any] = {
             "metrics": metric_means,
             "by_split": split_breakdown,
             "num_rows": len(df),
+            "valid_counts": valid_counts,
+            "failed_rows": failed_rows,
+            "thresholds": thresholds,
+            "threshold_details": threshold_details,
+            "passed": passed,
             "backend_url": backend_url,
             "timestamp": ts,
         }
     except Exception:
         # Fallback: best-effort serialisation of the result object.
         summary = {
+            "metrics": {metric: None for metric in METRIC_NAMES},
+            "by_split": {},
+            "num_rows": 0,
+            "valid_counts": {metric: 0 for metric in METRIC_NAMES},
+            "failed_rows": failed_rows,
+            "thresholds": DEFAULT_THRESHOLDS,
+            "threshold_details": {
+                "min_valid_rows": {
+                    "required": int(DEFAULT_THRESHOLDS["min_valid_rows"]),
+                    "actual": 0,
+                    "passed": False,
+                }
+            },
+            "passed": False,
             "raw_result": str(result),
             "backend_url": backend_url,
             "timestamp": ts,

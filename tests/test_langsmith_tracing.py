@@ -14,6 +14,8 @@ def _make_state() -> AgentState:
     return {
         "session_id": "sess-1",
         "user_id": "user-1",
+        "request_id": "req-1",
+        "trace_id": "trace-1",
         "messages": [],
         "intent": "product_qa",
         "retrieved_docs": [],
@@ -52,6 +54,8 @@ def test_build_run_config_includes_metadata_when_enabled(monkeypatch):
     meta = config.get("metadata") or {}
     assert meta.get("session_id") == "sess-1"
     assert meta.get("user_id") == "user-1"
+    assert meta.get("request_id") == "req-1"
+    assert meta.get("trace_id") == "trace-1"
     assert meta.get("intent") == "product_qa"
     tags = config.get("tags") or []
     assert "phase-6" in tags

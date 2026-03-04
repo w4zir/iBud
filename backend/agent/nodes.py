@@ -7,8 +7,16 @@ from typing import Any, Dict, List
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from ..config import debug_print, get_llm
-from ..observability.prometheus_metrics import escalations, llm_tokens, tool_calls
+from ..config import get_llm, log_event
+from ..observability.prometheus_metrics import (
+    error_count,
+    escalations,
+    intent_distribution,
+    llm_tokens,
+    task_outcome,
+    tool_calls,
+    tool_outcome,
+)
 from ..rag.retriever import RetrievedDoc, Retriever
 from ..tools.faq_search import faq_search_tool
 from ..tools.order_lookup import order_lookup_tool
@@ -142,7 +150,17 @@ async def classify_intent(state: AgentState) -> AgentState:
 
     next_state: AgentState = dict(state)
     next_state["intent"] = intent
-    debug_print("agent", "classify_intent", intent=intent)
+    try:
+        intent_distribution.labels(intent=intent).inc()
+    except Exception:
+        pass
+    log_event(
+        "agent",
+        "classify_intent",
+        session_id=state.get("session_id"),
+        request_id=state.get("request_id"),
+        intent=intent,
+    )
     return next_state
 
 
@@ -184,7 +202,15 @@ async def retrieve_context(state: AgentState) -> AgentState:
     ]
     next_state: AgentState = dict(state)
     next_state["retrieved_docs"] = serialized
-    debug_print("agent", "retrieve_context", intent=intent, category=category, docs_count=len(docs))
+    log_event(
+        "agent",
+        "retrieve_context",
+        session_id=state.get("session_id"),
+        request_id=state.get("request_id"),
+        intent=intent,
+        category=category,
+        docs_count=len(docs),
+    )
     return next_state
 
 
@@ -229,7 +255,14 @@ async def plan_action(state: AgentState) -> AgentState:
 
     next_state: AgentState = dict(state)
     next_state["tool_calls"] = tool_calls
-    debug_print("agent", "plan_action", tool_calls_count=len(tool_calls), names=[t.get("name") for t in tool_calls])
+    log_event(
+        "agent",
+        "plan_action",
+        session_id=state.get("session_id"),
+        request_id=state.get("request_id"),
+        tool_calls_count=len(tool_calls),
+        names=[t.get("name") for t in tool_calls],
+    )
     return next_state
 
 
@@ -240,7 +273,14 @@ async def execute_tool(state: AgentState) -> AgentState:
     for call in calls:
         name = call.get("name")
         args = call.get("arguments", {})
-        debug_print("agent", "tool", name=name, arguments=args)
+        log_event(
+            "agent",
+            "execute_tool",
+            session_id=state.get("session_id"),
+            request_id=state.get("request_id"),
+            tool_name=name,
+            arguments=args,
+        )
         try:
             if name:
                 try:
@@ -281,6 +321,11 @@ async def execute_tool(state: AgentState) -> AgentState:
                     error=None,
                 )
             )
+            if name:
+                try:
+                    tool_outcome.labels(tool_name=name, outcome="success").inc()
+                except Exception:
+                    pass
         except Exception as exc:
             results.append(
                 ToolResult(
@@ -290,6 +335,15 @@ async def execute_tool(state: AgentState) -> AgentState:
                     error=str(exc),
                 )
             )
+            if name:
+                try:
+                    tool_outcome.labels(tool_name=name, outcome="failure").inc()
+                except Exception:
+                    pass
+            try:
+                error_count.labels(error_type="tool_error", component="agent").inc()
+            except Exception:
+                pass
 
     next_state: AgentState = dict(state)
     next_state["tool_results"] = results
@@ -331,7 +385,12 @@ async def synthesize_response(state: AgentState) -> AgentState:
 
     next_state: AgentState = dict(state)
     next_state["final_response"] = answer
-    debug_print("agent", "synthesize_response")
+    log_event(
+        "agent",
+        "synthesize_response",
+        session_id=state.get("session_id"),
+        request_id=state.get("request_id"),
+    )
     return next_state
 
 
@@ -361,17 +420,45 @@ async def check_escalation(state: AgentState) -> AgentState:
 
     next_state: AgentState = dict(state)
     next_state["should_escalate"] = bool(should)
-    debug_print("agent", "check_escalation", should_escalate=bool(should))
+    if should:
+        try:
+            task_outcome.labels(outcome="escalated").inc()
+        except Exception:
+            pass
+    else:
+        try:
+            task_outcome.labels(outcome="resolved_without_escalation").inc()
+        except Exception:
+            pass
+    log_event(
+        "agent",
+        "check_escalation",
+        session_id=state.get("session_id"),
+        request_id=state.get("request_id"),
+        should_escalate=bool(should),
+    )
     return next_state
 
 
 async def create_ticket(state: AgentState) -> AgentState:
     if not state.get("should_escalate"):
-        debug_print("agent", "create_ticket", skipped="no_escalation")
+        log_event(
+            "agent",
+            "create_ticket_skipped",
+            session_id=state.get("session_id"),
+            request_id=state.get("request_id"),
+            skipped="no_escalation",
+        )
         return state
 
     if state.get("ticket_id"):
-        debug_print("agent", "create_ticket", skipped="already_has_ticket")
+        log_event(
+            "agent",
+            "create_ticket_skipped",
+            session_id=state.get("session_id"),
+            request_id=state.get("request_id"),
+            skipped="already_has_ticket",
+        )
         return state
 
     user_text = _get_latest_user_message(state)
@@ -385,9 +472,19 @@ async def create_ticket(state: AgentState) -> AgentState:
     ticket_id = result.get("ticket_id")
     if ticket_id:
         next_state["ticket_id"] = str(ticket_id)
-        debug_print("agent", "create_ticket", ticket_id=str(ticket_id))
+        log_event(
+            "agent",
+            "create_ticket",
+            session_id=state.get("session_id"),
+            request_id=state.get("request_id"),
+            ticket_id=str(ticket_id),
+        )
         try:
             escalations.inc()
+        except Exception:
+            pass
+        try:
+            task_outcome.labels(outcome="completed").inc()
         except Exception:
             pass
 

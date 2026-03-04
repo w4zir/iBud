@@ -1,23 +1,28 @@
 from __future__ import annotations
 
-import inspect
 import json
 import time
 from hashlib import md5
 from typing import Any, AsyncGenerator, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...agent import graph as agent_graph
 from ...agent.state import AgentState
-from ...config import debug_print
+from ...config import log_event
 from ...db.models import Message, Session
 from ...db.postgres import get_session
 from ...db.redis_client import get_client as get_redis_client
-from ...observability.prometheus_metrics import cache_hits, request_count, request_latency
+from ...observability.prometheus_metrics import (
+    cache_hits,
+    chat_turns,
+    error_count,
+    request_count,
+    request_latency,
+)
 from ..models import ChatRequest, ChatResponse, Source
 
 
@@ -100,16 +105,19 @@ def _tools_used_from_state(state: AgentState) -> List[str]:
 async def _run_agent_flow(
     db: AsyncSession,
     req: ChatRequest,
+    request_id: str,
     *,
     use_cache: bool = True,
 ) -> ChatResponse:
     start = time.perf_counter()
+    request_status = "ok"
     try:
         session = await _get_or_create_session(db, req.session_id, req.user_id)
 
-        debug_print(
+        log_event(
             "chat",
-            "request",
+            "request_received",
+            request_id=request_id,
             session_id=str(session.id),
             user_id=req.user_id,
             message_len=len(req.message),
@@ -142,9 +150,16 @@ async def _run_agent_flow(
                 cached_payload = _local_chat_cache.get(cache_key)
                 cache_hit = cached_payload is not None
 
-        debug_print("chat", "cache", cache_hit=cache_hit)
+        log_event(
+            "chat",
+            "cache_lookup",
+            request_id=request_id,
+            session_id=str(session.id),
+            status="hit" if cache_hit else "miss",
+        )
 
         if cache_hit and cached_payload is not None:
+            request_status = "cache_hit"
             assistant_content = cached_payload.get("response", "")
             assistant_msg = Message(
                 session_id=session.id,
@@ -158,33 +173,35 @@ async def _run_agent_flow(
             except Exception:
                 pass
             resp = ChatResponse(**cached_payload)
-            debug_print("chat", "returning cached response")
+            log_event(
+                "chat",
+                "return_cached_response",
+                request_id=request_id,
+                session_id=str(session.id),
+            )
             return resp
 
-        debug_print("chat", "agent start")
+        log_event("chat", "agent_start", request_id=request_id, session_id=str(session.id))
         history = await _load_message_history(db, session_id=session.id)
-        history.append(
-            {
-                "role": "user",
-                "content": req.message,
-            }
-        )
+        try:
+            chat_turns.observe(len(history))
+        except Exception:
+            pass
 
         state: AgentState = {
             "session_id": str(session.id),
             "user_id": req.user_id,
+            "request_id": request_id,
             "messages": history,
         }
-        run_result = agent_graph.run_agent(state, thread_id=str(session.id))
-        if inspect.isawaitable(run_result):
-            final_state = await run_result
-        else:
-            final_state = run_result
+        final_state = await agent_graph.run_agent(state, thread_id=str(session.id))
         response_text = final_state.get("final_response") or ""
 
-        debug_print(
+        log_event(
             "chat",
-            "agent end",
+            "agent_end",
+            request_id=request_id,
+            session_id=str(session.id),
             response_len=len(response_text),
             sources_count=len(final_state.get("retrieved_docs") or []),
             tools_count=len(final_state.get("tool_results") or []),
@@ -221,9 +238,10 @@ async def _run_agent_flow(
                 # Fallback to local in-memory cache when Redis is not available.
                 _local_chat_cache[cache_key] = payload
 
-        debug_print(
+        log_event(
             "chat",
-            "response",
+            "response_ready",
+            request_id=request_id,
             session_id=str(session.id),
             sources=len(sources),
             tools_used=tools_used,
@@ -231,10 +249,17 @@ async def _run_agent_flow(
         )
         resp = ChatResponse(**payload)
         return resp
+    except Exception:
+        request_status = "agent_error"
+        try:
+            error_count.labels(error_type="agent_error", component="chat").inc()
+        except Exception:
+            pass
+        raise
     finally:
         elapsed = time.perf_counter() - start
         try:
-            request_count.labels(status="ok").inc()
+            request_count.labels(status=request_status).inc()
             request_latency.observe(elapsed)
         except Exception:
             pass
@@ -243,6 +268,7 @@ async def _run_agent_flow(
 @router.post("/", response_model=ChatResponse)
 async def chat(
     req: ChatRequest,
+    request: Request,
     db: AsyncSession = Depends(get_session),
 ) -> JSONResponse:
     if not req.message.strip():
@@ -251,13 +277,15 @@ async def chat(
             detail="message must not be empty",
         )
 
-    resp = await _run_agent_flow(db, req, use_cache=True)
-    return JSONResponse(content=resp.dict())
+    request_id = getattr(request.state, "request_id", "")
+    resp = await _run_agent_flow(db, req, request_id, use_cache=True)
+    return JSONResponse(content=resp.dict(), headers={"X-Request-ID": request_id})
 
 
 @router.post("/stream")
 async def chat_stream(
     req: ChatRequest,
+    request: Request,
     db: AsyncSession = Depends(get_session),
 ) -> StreamingResponse:
     if not req.message.strip():
@@ -266,12 +294,18 @@ async def chat_stream(
             detail="message must not be empty",
         )
 
+    request_id = getattr(request.state, "request_id", "")
+
     async def event_generator() -> AsyncGenerator[bytes, None]:
-        resp = await _run_agent_flow(db, req, use_cache=True)
+        resp = await _run_agent_flow(db, req, request_id, use_cache=True)
         data = json.dumps(resp.dict())
         yield f"data: {data}\n\n".encode("utf-8")
 
-    return StreamingResponse(event_generator(), media_type="text/event-stream")
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={"X-Request-ID": request_id},
+    )
 
 
 __all__ = ["router"]

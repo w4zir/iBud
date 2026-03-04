@@ -1,15 +1,14 @@
 import json
-import logging
 import os
+import time
 from dataclasses import dataclass
 from hashlib import md5
 from typing import Any, Dict, Optional
 
 from redis.asyncio import Redis
 
-
-logger = logging.getLogger(__name__)
-
+from ..config import log_event
+from ..observability.prometheus_metrics import error_count, redis_latency
 
 def _get_redis_params() -> Dict[str, Any]:
     host = os.getenv("REDIS_HOST", "redis")
@@ -68,14 +67,24 @@ async def get_cached(key: str) -> Optional[Any]:
     Returns deserialized JSON or None on miss or Redis error.
     """
     client = get_client()
+    start = time.perf_counter()
     try:
         data = await client.get(key)
         if data is None:
             return None
         return json.loads(data)
     except Exception as exc:  # pragma: no cover - defensive
-        logger.warning("Redis get failed for key %s: %s", key, exc)
+        log_event("redis", "get_failed", key=key, error_type="redis_get_error", error=str(exc))
+        try:
+            error_count.labels(error_type="redis_get_error", component="redis").inc()
+        except Exception:
+            pass
         return None
+    finally:
+        try:
+            redis_latency.labels(operation="get").observe(time.perf_counter() - start)
+        except Exception:
+            pass
 
 
 async def set_cached(key: str, value: Any) -> None:
@@ -87,11 +96,21 @@ async def set_cached(key: str, value: Any) -> None:
     client = get_client()
     params = _get_redis_params()
     ttl = params["ttl"]
+    start = time.perf_counter()
     try:
         payload = json.dumps(value)
         await client.set(key, payload, ex=ttl)
     except Exception as exc:  # pragma: no cover - defensive
-        logger.warning("Redis set failed for key %s: %s", key, exc)
+        log_event("redis", "set_failed", key=key, error_type="redis_set_error", error=str(exc))
+        try:
+            error_count.labels(error_type="redis_set_error", component="redis").inc()
+        except Exception:
+            pass
+    finally:
+        try:
+            redis_latency.labels(operation="set").observe(time.perf_counter() - start)
+        except Exception:
+            pass
 
 
 __all__ = [

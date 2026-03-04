@@ -1,6 +1,9 @@
-# backend/config.py — LLM and embedding provider switcher (Phase 0)
-# Switching providers: set LLM_PROVIDER / EMBEDDING_PROVIDER in .env only.
+"""Runtime configuration and shared logging helpers."""
+import json
+import logging
 import os
+from datetime import datetime, timezone
+from typing import Any, Dict
 
 
 def is_debug() -> bool:
@@ -9,14 +12,65 @@ def is_debug() -> bool:
     return raw in ("true", "1", "yes")
 
 
+class _StructuredFormatter(logging.Formatter):
+    REDACT_KEYS = {"password", "token", "api_key", "secret", "authorization"}
+
+    def format(self, record: logging.LogRecord) -> str:
+        payload = {
+            "ts": datetime.now(timezone.utc).isoformat(),
+            "level": record.levelname,
+            "logger": record.name,
+            "msg": record.getMessage(),
+        }
+        extra_fields = getattr(record, "structured_extra", {})
+        if isinstance(extra_fields, dict):
+            payload.update(_redact_dict(extra_fields))
+        return json.dumps(payload, ensure_ascii=True)
+
+
+def _redact_dict(data: Dict[str, Any]) -> Dict[str, Any]:
+    redacted: Dict[str, Any] = {}
+    for key, value in data.items():
+        key_l = str(key).lower()
+        if key_l in _StructuredFormatter.REDACT_KEYS:
+            redacted[key] = "***REDACTED***"
+            continue
+        if isinstance(value, dict):
+            redacted[key] = _redact_dict(value)
+        else:
+            redacted[key] = value
+    return redacted
+
+
+def get_logger(name: str) -> logging.Logger:
+    logger = logging.getLogger(name)
+    if logger.handlers:
+        return logger
+
+    handler = logging.StreamHandler()
+    handler.setFormatter(_StructuredFormatter())
+    logger.addHandler(handler)
+    logger.propagate = False
+    logger.setLevel(logging.DEBUG if is_debug() else logging.INFO)
+    return logger
+
+
+def log_event(
+    component: str,
+    message: str,
+    *,
+    level: int = logging.INFO,
+    **fields: Any,
+) -> None:
+    logger = get_logger(component)
+    logger.log(level, message, extra={"structured_extra": fields})
+
+
 def debug_print(tag: str, message: str, **kwargs: object) -> None:
-    """Print to stdout only when DEBUG is enabled. Use tag e.g. 'chat' or 'agent'."""
+    """Backward-compatible debug logger wrapper."""
     if not is_debug():
         return
-    parts = [f"[DEBUG][{tag}]", message]
-    if kwargs:
-        parts.append(" ".join(f"{k}={v!r}" for k, v in kwargs.items()))
-    print(" ".join(parts))
+    log_event(tag, message, level=logging.DEBUG, **kwargs)
 
 
 def get_embedding_dim() -> int:
