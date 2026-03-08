@@ -1,0 +1,79 @@
+{
+  "uid": "executive-observability",
+  "title": "Executive - Agentic RAG Observability",
+  "schemaVersion": 38,
+  "version": 1,
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Automation Rate (Prometheus)",
+      "datasource": null,
+      "targets": [
+        {
+          "expr": "sum(rate(task_outcome_total{outcome=\"resolved_without_escalation\"}[30m])) / clamp_min(sum(rate(task_outcome_total[30m])), 1e-9)",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Escalation Rate (Prometheus)",
+      "datasource": null,
+      "targets": [
+        {
+          "expr": "sum(rate(task_outcome_total{outcome=\"escalated\"}[30m])) / clamp_min(sum(rate(task_outcome_total[30m])), 1e-9)",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "graph",
+      "title": "Cost Proxy (LLM Tokens by Provider)",
+      "datasource": null,
+      "targets": [
+        {
+          "expr": "sum(rate(llm_tokens_total[1h])) by (provider)",
+          "legendFormat": "{{provider}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "graph",
+      "title": "Chat Request Volume",
+      "datasource": null,
+      "targets": [
+        {
+          "expr": "sum(rate(chat_requests_total[5m]))",
+          "legendFormat": "requests_per_second",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "graph",
+      "title": "Error Rate",
+      "datasource": null,
+      "targets": [
+        {
+          "expr": "sum(rate(errors_total[5m])) / clamp_min(sum(rate(chat_requests_total[5m])), 1e-9)",
+          "legendFormat": "error_rate",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "text",
+      "title": "CSAT / NPS Placeholder",
+      "datasource": null,
+      "options": {
+        "mode": "markdown",
+        "content": "CSAT and NPS are placeholders until external survey ingestion is connected. Query `sessions.csat_score` and `sessions.nps_score` once available."
+      }
+    }
+  ]
+}

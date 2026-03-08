@@ -174,6 +174,7 @@ You should see a chronological list of `{role, content, created_at}` entries for
    - Tool calls
    - Escalations
    - LLM tokens by provider
+   - Executive, product, and AI-quality dashboard panels for audience-specific views
 
 ### 6.3 LangSmith traces
 
@@ -266,4 +267,32 @@ Each `evaluation/results/run_<timestamp>.json` file includes:
 - **Streamlit UI cannot reach backend**
   - Check that `BACKEND_BASE_URL` (if set) points to the correct backend URL.
   - Ensure CORS is configured via `CORS_ORIGINS` in `.env` (e.g. `http://localhost:8501`).
+
+## 9. Alerting and SLO tests (Phase 10)
+
+Run alert and dashboard structure tests:
+
+```powershell
+.\venv\Scripts\python -m pytest tests/test_alert_rules.py tests/test_dashboards.py
+```
+
+Validate that:
+
+- All required alerts exist with expressions, severity labels, and runbook annotations.
+- Audience dashboard JSON files are valid and include expected key panels.
+
+## 10. Remediation tests (Phase 11)
+
+Run remediation unit tests:
+
+```powershell
+.\venv\Scripts\python -m pytest tests/test_remediation.py
+```
+
+These tests validate:
+
+- Rule evaluation and trigger behavior
+- Governance controls (`manual_override`, global enable/disable, action budget)
+- Dry-run and execution behavior of remediation engine
+- Intervention recording path
 

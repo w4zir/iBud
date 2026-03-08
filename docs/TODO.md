@@ -35,11 +35,11 @@ Observability is considered complete when:
 
 ## Phase 1 - Stabilize Existing Metrics and Evaluation
 
-- [ ] Verify and fix RAGAS score reliability in `evaluation/ragas_eval.py` so runs no longer produce `NaN`/empty breakdowns unless explicitly expected.
-- [ ] Add defensive handling for missing contexts, malformed backend responses, and evaluator failures in `evaluation/ragas_eval.py`.
-- [ ] Add/expand tests in `tests/test_ragas_eval.py` for non-NaN aggregation and per-split output.
-- [ ] Ensure `evaluation/results/run_*.json` schema is stable and documented in `docs/how_to_test.md`.
-- [ ] Add explicit pass/fail thresholds (minimum valid-row count + score sanity checks) to evaluation output.
+- [x] Verify and fix RAGAS score reliability in `evaluation/ragas_eval.py` so runs no longer produce `NaN`/empty breakdowns unless explicitly expected.
+- [x] Add defensive handling for missing contexts, malformed backend responses, and evaluator failures in `evaluation/ragas_eval.py`.
+- [x] Add/expand tests in `tests/test_ragas_eval.py` for non-NaN aggregation and per-split output.
+- [x] Ensure `evaluation/results/run_*.json` schema is stable and documented in `docs/how_to_test.md`.
+- [x] Add explicit pass/fail thresholds (minimum valid-row count + score sanity checks) to evaluation output.
 
 Acceptance criteria:
 
@@ -50,7 +50,7 @@ Acceptance criteria:
 
 ## Phase 2 - Expand Prometheus Metric Coverage
 
-- [ ] Extend `backend/observability/prometheus_metrics.py` with missing metrics:
+- [x] Extend `backend/observability/prometheus_metrics.py` with missing metrics:
   - Tool success/failure counters by `tool_name`
   - Intent distribution counter by `intent`
   - Chat turns per session histogram
@@ -59,10 +59,10 @@ Acceptance criteria:
   - Embedding latency histogram
   - Rerank latency histogram
   - Database and Redis operation latency histograms
-- [ ] Instrument `backend/agent/nodes.py` for intent, tool outcome, escalation reason, and outcome metrics.
-- [ ] Instrument `backend/rag/retriever.py` for embedding/rerank latency and retrieval-stage failure metrics.
-- [ ] Instrument `backend/api/routes/chat.py` for turns/session and request outcome labeling.
-- [ ] Instrument `backend/main.py` exception handlers with typed error labels.
+- [x] Instrument `backend/agent/nodes.py` for intent, tool outcome, escalation reason, and outcome metrics.
+- [x] Instrument `backend/rag/retriever.py` for embedding/rerank latency and retrieval-stage failure metrics.
+- [x] Instrument `backend/api/routes/chat.py` for turns/session and request outcome labeling.
+- [x] Instrument `backend/main.py` exception handlers with typed error labels.
 
 Acceptance criteria:
 
@@ -73,15 +73,15 @@ Acceptance criteria:
 
 ## Phase 3 - Introduce Structured Logging and Correlation IDs
 
-- [ ] Replace ad-hoc debug logging with structured logging in:
+- [x] Replace ad-hoc debug logging with structured logging in:
   - `backend/config.py`
   - `backend/api/routes/chat.py`
   - `backend/agent/nodes.py`
   - `backend/rag/retriever.py`
   - `backend/db/redis_client.py`
-- [ ] Define consistent log fields: `request_id`, `session_id`, `trace_id`, `user_id`, `intent`, `tool_name`, `status`, `latency_ms`, `error_type`.
-- [ ] Add redaction rules for sensitive fields (user content, secrets, tokens).
-- [ ] Update `docs/faq.md` and `docs/how_to_run.md` with logging mode guidance (`DEBUG` vs production).
+- [x] Define consistent log fields: `request_id`, `session_id`, `trace_id`, `user_id`, `intent`, `tool_name`, `status`, `latency_ms`, `error_type`.
+- [x] Add redaction rules for sensitive fields (user content, secrets, tokens).
+- [x] Update `docs/faq.md` and `docs/how_to_run.md` with logging mode guidance (`DEBUG` vs production).
 
 Acceptance criteria:
 
@@ -92,10 +92,10 @@ Acceptance criteria:
 
 ## Phase 4 - Request Tracing Middleware and Propagation
 
-- [ ] Add middleware in `backend/main.py` to create/propagate `request_id` from `X-Request-ID`.
-- [ ] Attach `request_id` to `request.state` and include in logs, agent state, and response headers.
-- [ ] Extend `backend/agent/state.py` to carry correlation fields (`request_id`, optional `trace_id`).
-- [ ] Ensure `backend/observability/langsmith_tracer.py` includes correlation metadata in run config.
+- [x] Add middleware in `backend/main.py` to create/propagate `request_id` from `X-Request-ID`.
+- [x] Attach `request_id` to `request.state` and include in logs, agent state, and response headers.
+- [x] Extend `backend/agent/state.py` to carry correlation fields (`request_id`, optional `trace_id`).
+- [x] Ensure `backend/observability/langsmith_tracer.py` includes correlation metadata in run config.
 
 Acceptance criteria:
 
@@ -181,15 +181,15 @@ Acceptance criteria:
 
 ## Phase 9 - Dashboard Expansion (Executive, Product, AI Quality)
 
-- [ ] Keep current operations dashboard and add:
+- [x] Keep current operations dashboard and add:
   - `infra/grafana/dashboards/executive-observability.json`
   - `infra/grafana/dashboards/product-observability.json`
   - `infra/grafana/dashboards/ai-quality-observability.json`
-- [ ] Include panels for:
+- [x] Include panels for:
   - Executive: automation rate, escalation, cost proxy, CSAT/NPS placeholders
   - Product: task completion, turns to resolution, recovery rate, tool success
   - AI quality: groundedness, hallucination rate, retrieval precision/recall, confidence calibration proxy
-- [ ] Validate each panel query against warehouse or Prometheus source of truth.
+- [x] Validate each panel query against warehouse or Prometheus source of truth.
 
 Acceptance criteria:
 
@@ -199,15 +199,15 @@ Acceptance criteria:
 
 ## Phase 10 - Alerting and SLOs
 
-- [ ] Add alert rules (Prometheus/Alertmanager or equivalent) for:
+- [x] Add alert rules (Prometheus/Alertmanager or equivalent) for:
   - Elevated error rate
   - P95 latency regression
   - Retrieval failure spike
   - Escalation spike
   - Evaluation quality regression
-- [ ] Add runbooks in `docs/` for each alert category.
-- [ ] Define SLOs and error budgets for chat availability, latency, and quality.
-- [ ] Add smoke-check automation to verify alerts trigger and resolve.
+- [x] Add runbooks in `docs/` for each alert category.
+- [x] Define SLOs and error budgets for chat availability, latency, and quality.
+- [x] Add smoke-check automation to verify alerts trigger and resolve.
 
 Acceptance criteria:
 
@@ -217,13 +217,13 @@ Acceptance criteria:
 
 ## Phase 11 - Feedback Loops and Self-Healing (Maturity Level 3)
 
-- [ ] Define automated remediation rules:
+- [x] Define automated remediation rules:
   - Retrieval quality drop -> trigger re-ingestion/re-index
   - Tool failure spike -> circuit breaker or fallback flow
   - Hallucination increase -> stricter grounding policy/prompt guard
-- [ ] Add model/data drift detection jobs and retraining/reconfiguration triggers.
-- [ ] Add governance controls for automatic actions (thresholds, cooldowns, manual override).
-- [ ] Track interventions and outcomes as first-class events.
+- [x] Add model/data drift detection jobs and retraining/reconfiguration triggers.
+- [x] Add governance controls for automatic actions (thresholds, cooldowns, manual override).
+- [x] Track interventions and outcomes as first-class events.
 
 Acceptance criteria:
 

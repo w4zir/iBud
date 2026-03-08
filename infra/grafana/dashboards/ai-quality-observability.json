@@ -1,0 +1,68 @@
+{
+  "uid": "ai-quality-observability",
+  "title": "AI Quality - Agentic RAG Observability",
+  "schemaVersion": 38,
+  "version": 1,
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Hallucination Proxy (Prometheus Fallback)",
+      "datasource": null,
+      "targets": [
+        {
+          "expr": "sum(rate(errors_total{error_type=\"ragas_evaluate_failed\"}[1h]))",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "graph",
+      "title": "Retrieval Latency (p95)",
+      "datasource": null,
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(retrieval_latency_seconds_bucket[5m])) by (le))",
+          "legendFormat": "retrieval_p95",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "graph",
+      "title": "Tool Failure Rate",
+      "datasource": null,
+      "targets": [
+        {
+          "expr": "sum(rate(tool_outcome_total{outcome=\"failure\"}[5m])) / clamp_min(sum(rate(tool_outcome_total[5m])), 1e-9)",
+          "legendFormat": "failure_rate",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "graph",
+      "title": "Evaluation Pipeline Throughput Proxy",
+      "datasource": null,
+      "targets": [
+        {
+          "expr": "sum(rate(chat_requests_total[30m]))",
+          "legendFormat": "chat_volume_proxy",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "text",
+      "title": "Warehouse Quality Panels",
+      "datasource": null,
+      "options": {
+        "mode": "markdown",
+        "content": "Use Postgres panels for quality metrics:\\n- AVG groundedness over time from `evaluation_scores`\\n- Hallucination rate from `v_hallucination_rate`\\n- AVG helpfulness over time from `evaluation_scores`\\n- Confidence calibration proxy from groundedness distribution"
+      }
+    }
+  ]
+}

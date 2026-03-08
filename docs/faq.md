@@ -28,6 +28,10 @@ You can track each step of a user message in several ways:
 4. **Session and graph reference**  
    For the exact sequence of steps and data flow, see **Data flow** and **Agent graph** in `docs/how_it_works.md`.
 
+### Q: When should I run with `DEBUG=true` versus production logging defaults?
+
+Use `DEBUG=true` only for local development and short-lived diagnostics. In debug mode, the backend emits additional structured events that are useful for tracing decisions and tool calls, but this increases log volume and can add overhead. For normal development, shared environments, and production-like runs, keep `DEBUG` unset (or `false`) so logs stay at INFO level with stable machine-parseable fields (`request_id`, `session_id`, `trace_id`, `status`, `latency_ms`, `error_type`) and lower noise.
+
 ### Q: plan_action says to call tool order_lookup — how do I check what call was made (e.g. SQL query) and what response was received?
 
 - **What call was made (arguments)**  
@@ -90,3 +94,19 @@ Set:
 - `OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317`
 
 Then run an OTel collector using `infra/otel/otel-collector-config.yaml`. The backend emits root `conversation` spans and child agent spans, and also attaches `otel_trace_id`/`otel_span_id` to LangSmith metadata when available.
+
+### Q: How do I configure and validate alerting?
+
+Alert rules are defined in `infra/prometheus/alert_rules.yml` and Alertmanager routing is in `infra/alertmanager/alertmanager.yml`. Start both services with Docker Compose, confirm Prometheus loads rule files, then verify alert annotations point to the runbooks:
+
+- `docs/runbook_errors.md`
+- `docs/runbook_latency.md`
+- `docs/runbook_retrieval.md`
+- `docs/runbook_escalation.md`
+- `docs/runbook_quality.md`
+
+You can also run `tests/test_alert_rules.py` for structural validation in CI.
+
+### Q: How do I run self-healing remediation checks safely?
+
+Use `POST /admin/remediation/check` first. This runs a dry-run evaluation and returns what would trigger without executing actions. If results look correct, call `POST /admin/remediation/trigger` to execute eligible actions. Use `GET /admin/remediation/history` to audit interventions and `GET /admin/remediation/config` to verify governance settings such as manual override and action budget.

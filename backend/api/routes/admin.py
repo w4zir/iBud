@@ -10,6 +10,10 @@ from ...db.models import Ticket
 from ...db.postgres import get_session
 from ...evaluation.pipeline import AsyncEvaluator
 from ...rag.ingest_wixqa import ingest_wixqa
+from ...remediation.drift import detect_model_data_drift
+from ...remediation.engine import RemediationEngine
+from ...remediation.events import recent_interventions
+from ...remediation.governance import GovernanceConfig
 
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -49,6 +53,43 @@ async def admin_trigger_eval(limit: int = 25, min_age_minutes: int = 5) -> dict:
     evaluator = AsyncEvaluator()
     stats = await evaluator.run_batch(limit=limit, min_age_minutes=min_age_minutes)
     return {"status": "ok", **stats}
+
+
+@router.post("/remediation/check")
+async def admin_remediation_check() -> dict:
+    engine = RemediationEngine()
+    report = await engine.run(dry_run=True)
+    drift = await detect_model_data_drift()
+    return {"status": "ok", "report": report, "drift": drift.__dict__}
+
+
+@router.post("/remediation/trigger")
+async def admin_remediation_trigger() -> dict:
+    engine = RemediationEngine()
+    report = await engine.run(dry_run=False)
+    drift = await detect_model_data_drift()
+    return {"status": "ok", "report": report, "drift": drift.__dict__}
+
+
+@router.get("/remediation/history")
+async def admin_remediation_history(hours: int = 24) -> dict:
+    history = await recent_interventions(hours=hours)
+    return {"status": "ok", "count": len(history), "events": history}
+
+
+@router.get("/remediation/config")
+async def admin_remediation_config() -> dict:
+    cfg = GovernanceConfig.from_env()
+    return {
+        "status": "ok",
+        "config": {
+            "global_enabled": cfg.global_enabled,
+            "manual_override": cfg.manual_override,
+            "min_cooldown_seconds": cfg.min_cooldown_seconds,
+            "max_actions_per_hour": cfg.max_actions_per_hour,
+            "rule_enabled_overrides": cfg.rule_enabled_overrides or {},
+        },
+    }
 
 
 __all__ = ["router"]

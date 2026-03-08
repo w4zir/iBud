@@ -91,7 +91,7 @@ docker compose up -d postgres redis ollama backend frontend
 ### 2.5 Full stack with observability
 
 ```powershell
-docker compose up -d postgres redis ollama backend frontend prometheus grafana
+docker compose up -d postgres redis ollama backend frontend prometheus grafana alertmanager
 ```
 
 Verify services:
@@ -100,7 +100,7 @@ Verify services:
 docker compose ps
 ```
 
-You should see at least `postgres`, `redis`, `ollama`, `backend`, and `frontend` in `Up` state; for observability, also `prometheus` and `grafana`.
+You should see at least `postgres`, `redis`, `ollama`, `backend`, and `frontend` in `Up` state; for observability, also `prometheus`, `grafana`, and `alertmanager`.
 
 ## 3. Prepare Ollama models (for embeddings)
 
@@ -284,6 +284,54 @@ When enabled, the backend emits:
 - Root `conversation` spans from chat handling
 - Child spans for `intent_detection`, `retrieval`, `tool_calls`, `response_synthesis`, and `outcome` steps
 - OTel trace IDs are also attached to LangSmith metadata for cross-correlation
+
+### 7.7 Audience dashboards (Phase 9)
+
+Grafana dashboards now include audience-specific views:
+
+- `infra/grafana/dashboards/phase6-observability.json` (operations baseline)
+- `infra/grafana/dashboards/executive-observability.json`
+- `infra/grafana/dashboards/product-observability.json`
+- `infra/grafana/dashboards/ai-quality-observability.json`
+
+Import each dashboard in Grafana and validate panel queries against `/metrics` and warehouse-backed KPI definitions in `docs/qa.md`.
+
+### 7.8 Alerting and SLO setup (Phase 10)
+
+Prometheus rules and Alertmanager config are provided:
+
+- `infra/prometheus/alert_rules.yml`
+- `infra/alertmanager/alertmanager.yml`
+- `docs/slos.md` (availability, latency, and quality objectives)
+
+Start alerting components with:
+
+```powershell
+docker compose up -d prometheus alertmanager
+```
+
+Then verify:
+
+1. Prometheus loads `rule_files` from `infra/prometheus/prometheus.yml`
+2. Alertmanager is reachable at `http://localhost:9093`
+3. Alert annotations reference runbooks in `docs/runbook_*.md`
+
+### 7.9 Self-healing remediation endpoints (Phase 11)
+
+Use admin endpoints to inspect and run remediation logic:
+
+- Dry-run checks: `POST /admin/remediation/check`
+- Execute eligible remediations: `POST /admin/remediation/trigger`
+- Intervention history: `GET /admin/remediation/history?hours=24`
+- Governance config: `GET /admin/remediation/config`
+
+Examples:
+
+```powershell
+curl -X POST http://localhost:8000/admin/remediation/check
+curl -X POST http://localhost:8000/admin/remediation/trigger
+curl http://localhost:8000/admin/remediation/history?hours=24
+```
 
 ## 8. Quick verification checklist
 

@@ -1,0 +1,62 @@
+groups:
+  - name: ibud-observability-alerts
+    rules:
+      - alert: HighErrorRate
+        expr: sum(rate(errors_total[5m])) / clamp_min(sum(rate(chat_requests_total[5m])), 1e-9) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          component: api
+          owner: engineering
+        annotations:
+          summary: "High backend error rate"
+          description: "Error rate is above 5% over 5 minutes."
+          runbook: "docs/runbook_errors.md"
+
+      - alert: P95LatencyRegression
+        expr: histogram_quantile(0.95, sum(rate(chat_latency_seconds_bucket[5m])) by (le)) > 10
+        for: 5m
+        labels:
+          severity: critical
+          component: api
+          owner: engineering
+        annotations:
+          summary: "P95 chat latency regression"
+          description: "P95 chat latency has exceeded 10 seconds."
+          runbook: "docs/runbook_latency.md"
+
+      - alert: RetrievalFailureSpike
+        expr: sum(rate(errors_total{component="retriever"}[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          component: retriever
+          owner: engineering
+        annotations:
+          summary: "Retrieval failure spike detected"
+          description: "Retriever errors exceed the expected baseline."
+          runbook: "docs/runbook_retrieval.md"
+
+      - alert: EscalationSpike
+        expr: sum(rate(task_outcome_total{outcome="escalated"}[15m])) / clamp_min(sum(rate(task_outcome_total[15m])), 1e-9) > 0.3
+        for: 10m
+        labels:
+          severity: warning
+          component: agent
+          owner: product
+        annotations:
+          summary: "Escalation spike detected"
+          description: "Escalation rate is above 30% over 15 minutes."
+          runbook: "docs/runbook_escalation.md"
+
+      - alert: EvaluationQualityRegression
+        expr: sum(rate(task_outcome_total{outcome="escalated"}[30m])) / clamp_min(sum(rate(task_outcome_total[30m])), 1e-9) > 0.35
+        for: 15m
+        labels:
+          severity: warning
+          component: evaluation
+          owner: qa
+        annotations:
+          summary: "Evaluation quality regression proxy"
+          description: "Escalation-based quality proxy indicates potential quality degradation."
+          runbook: "docs/runbook_quality.md"

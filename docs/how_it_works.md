@@ -509,3 +509,36 @@ OpenTelemetry instrumentation is available when `OTEL_ENABLED=true`:
 
 LangSmith and OTel are linked by injecting `otel_trace_id`/`otel_span_id` into LangSmith run metadata, enabling cross-system trace correlation.
 
+## Dashboard expansion (Phase 9)
+
+Grafana dashboards are split by stakeholder audience:
+
+- **Executive**: automation rate, escalation rate, cost proxy, request and error trend.
+- **Product**: task completion, turns to resolution, recovery proxy, tool success/latency, intent mix.
+- **AI quality**: quality proxies, retrieval/tool reliability, evaluation throughput hints, and warehouse quality guidance.
+
+This split reduces custom query work and gives each audience a focused operational surface.
+
+## Alerting and SLOs (Phase 10)
+
+Prometheus alert rules encode key degradations:
+
+- Elevated error rate
+- P95 latency regression
+- Retrieval failure spike
+- Escalation spike
+- Quality regression proxy
+
+Alert annotations link directly to runbooks, and SLO/error-budget definitions in `docs/slos.md` define objective reliability targets for availability, latency, and quality.
+
+## Feedback loops and self-healing (Phase 11)
+
+The remediation engine adds controlled automation on top of observability:
+
+1. Evaluate rules for retrieval quality drop, tool failure spikes, and hallucination increase.
+2. Apply governance controls (global enable, manual override, cooldown, action budget).
+3. Execute safe remediation actions when eligible.
+4. Record interventions as first-class `agent_spans` events (`span_name="remediation"`).
+
+Additional drift detection compares recent quality and intent patterns against baseline windows to support auditable corrective actions and future retraining/reconfiguration triggers.
+

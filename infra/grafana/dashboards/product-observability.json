@@ -1,0 +1,97 @@
+{
+  "uid": "product-observability",
+  "title": "Product - Agentic RAG Observability",
+  "schemaVersion": 38,
+  "version": 1,
+  "time": {
+    "from": "now-24h",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Task Completion Rate",
+      "datasource": null,
+      "targets": [
+        {
+          "expr": "sum(rate(task_outcome_total{outcome=\"completed\"}[30m])) / clamp_min(sum(rate(task_outcome_total[30m])), 1e-9)",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "graph",
+      "title": "Turns to Resolution (p50/p95)",
+      "datasource": null,
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.5, sum(rate(chat_turns_per_session_bucket[1h])) by (le))",
+          "legendFormat": "p50",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(chat_turns_per_session_bucket[1h])) by (le))",
+          "legendFormat": "p95",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Tool Success Rate",
+      "datasource": null,
+      "targets": [
+        {
+          "expr": "sum(rate(tool_outcome_total{outcome=\"success\"}[5m])) / clamp_min(sum(rate(tool_outcome_total[5m])), 1e-9)",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "graph",
+      "title": "Intent Distribution",
+      "datasource": null,
+      "targets": [
+        {
+          "expr": "sum(rate(intent_distribution_total[5m])) by (intent)",
+          "legendFormat": "{{intent}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "graph",
+      "title": "Embedding and Rerank Latency (p95)",
+      "datasource": null,
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(embedding_latency_seconds_bucket[5m])) by (le))",
+          "legendFormat": "embedding_p95",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(rerank_latency_seconds_bucket[5m])) by (le))",
+          "legendFormat": "rerank_p95",
+          "refId": "B"
+        }
+      ]
+    },
+    {
+      "type": "graph",
+      "title": "DB and Redis Operation Latency (p95)",
+      "datasource": null,
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(db_operation_latency_seconds_bucket[5m])) by (le, operation))",
+          "legendFormat": "db_{{operation}}",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(redis_operation_latency_seconds_bucket[5m])) by (le, operation))",
+          "legendFormat": "redis_{{operation}}",
+          "refId": "B"
+        }
+      ]
+    }
+  ]
+}

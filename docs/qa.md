@@ -182,6 +182,39 @@ When OTel is enabled:
 - Verify child spans exist for intent detection, retrieval, tool calls, response synthesis, and outcome.
 - Verify LangSmith run metadata includes `otel_trace_id` and `otel_span_id` for cross-correlation.
 
+## Dashboard QA checks (Phase 9)
+
+Validate dashboard audience slices in Grafana:
+
+- Executive dashboard shows automation, escalation, cost proxy, request volume, and error trend.
+- Product dashboard shows completion, turns-to-resolution, tool success, intent mix, and latency panels.
+- AI-quality dashboard shows retrieval/tool reliability and quality-oriented proxy panels.
+
+For each panel, verify the query aligns with Prometheus or warehouse source-of-truth semantics.
+
+## Alerting and SLO QA checks (Phase 10)
+
+Validate alerting end-to-end:
+
+1. Prometheus loads `infra/prometheus/alert_rules.yml` without parse errors.
+2. Alertmanager receives alerts and routes by severity.
+3. Alert annotations include `runbook` links with actionable procedures.
+4. SLOs in `docs/slos.md` are measurable from available telemetry.
+
+Smoke-check recommendation:
+
+- Trigger synthetic error/latency conditions in a non-production environment.
+- Confirm alert fires, appears in Alertmanager, and resolves after rollback.
+
+## Self-healing QA checks (Phase 11)
+
+Validate remediation controls and auditability:
+
+- Dry-run endpoint (`POST /admin/remediation/check`) reports expected triggers.
+- Active endpoint (`POST /admin/remediation/trigger`) executes only eligible actions.
+- Governance flags (`manual_override`, cooldown, action budget) are enforced.
+- Intervention history is recorded and queryable via `GET /admin/remediation/history`.
+
 ## Release / merge checklist
 
 Before merging or releasing:
@@ -198,6 +231,8 @@ Before merging or releasing:
 - **Quality-level**
   - For RAG-related changes: RAGAS metrics are within acceptable ranges or improved.
   - Observability is intact (metrics and traces still recorded).
+  - Alert rules and runbooks remain aligned.
+  - Remediation automation remains governed and auditable.
 
 If any of the above fail, log a defect in your tracking system with:
 
