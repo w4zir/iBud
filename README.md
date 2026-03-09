@@ -87,7 +87,8 @@ From the project root:
     --dataset-key bitext `
     --testset-path evaluation/bitext_testset_sampled.json `
     --limit 200 `
-    --experiment-name "bitext-intent-v1"
+    --experiment-name "bitext-intent-v1" `
+    --intent-prompt-profile bitext
   ```
 
   You can configure a separate judge provider/model for RAGAS via `RAGAS_LLM_PROVIDER` and related env vars; by default it reuses the runtime provider (e.g. local Ollama when `LLM_PROVIDER=ollama`, Cerebras when `LLM_PROVIDER=cerebras`). See `docs/faq.md`, `docs/how_to_run.md`, and `docs/how_to_test.md` for details.

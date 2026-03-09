@@ -1,0 +1,27 @@
+{
+  "run_id": "eefb9896-0248-4111-96c9-eebd61219ca6",
+  "experiment_name": "bitext-intent-v4",
+  "dataset_key": "bitext",
+  "model_provider": "ollama",
+  "model_name": "llama3.2",
+  "prompt_version": "intent-v1",
+  "metrics": {
+    "accuracy": 0.6666666666666666,
+    "macro_precision": 0.5,
+    "macro_recall": 0.5,
+    "macro_f1": 1.0,
+    "total_examples": 3,
+    "correct_examples": 2,
+    "failed_examples": 0
+  },
+  "confusion": {
+    "cancel_order": {
+      "cancel_order": 2
+    },
+    "change_order": {
+      "complaint": 1
+    }
+  },
+  "backend_url": "http://localhost:8000",
+  "timestamp": 1773091360
+}

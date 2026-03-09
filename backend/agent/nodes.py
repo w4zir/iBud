@@ -28,10 +28,10 @@ from ..tools.return_initiate import return_initiate_tool
 from ..tools.ticket_create import ticket_create_tool
 from .prompts import (
     SYSTEM_ESCALATION,
-    SYSTEM_INTENT_CLASSIFIER,
     SYSTEM_PLANNER,
     SYSTEM_RESPONDER,
 )
+from .intent_prompts import BITEXT_INTENTS, get_intent_prompt_profile
 from .state import AgentState, Intent, RetrievedDocState, ToolCall, ToolResult
 
 
@@ -157,38 +157,49 @@ async def classify_intent(state: AgentState) -> AgentState:
     span_ctx, otel_span = _start_otel_span("intent_detection")
     llm = get_llm()
     user_text = _get_latest_user_message(state)
+
+    profile_override = state.get("intent_prompt_profile")
+    system_prompt, allowed_intents, profile_name = get_intent_prompt_profile(
+        profile_override
+    )
     messages = [
-        SystemMessage(content=SYSTEM_INTENT_CLASSIFIER),
+        SystemMessage(content=system_prompt),
         HumanMessage(content=user_text),
     ]
     resp = await llm.ainvoke(messages)
     _record_llm_tokens(resp)
     raw = (resp.content or "").strip().lower()
 
-    intent: Intent
-    if raw in {
+    intent_value: str
+    bitext_set = set(BITEXT_INTENTS)
+    default_set = {
         "order_status",
         "return_request",
         "product_qa",
         "account_issue",
         "complaint",
         "other",
-    }:
-        intent = raw  # type: ignore[assignment]
+    }
+
+    if raw in allowed_intents or raw in bitext_set or raw in default_set:
+        intent_value = raw
     else:
         if "status" in raw:
-            intent = "order_status"
+            intent_value = "order_status"
         elif "return" in raw or "refund" in raw:
-            intent = "return_request"
+            intent_value = "return_request"
         elif "account" in raw or "login" in raw or "password" in raw:
-            intent = "account_issue"
+            intent_value = "account_issue"
         elif "complain" in raw or "terrible" in raw or "angry" in raw:
-            intent = "complaint"
+            intent_value = "complaint"
         else:
-            intent = "product_qa"
+            intent_value = "product_qa"
+
+    intent: Intent = intent_value  # type: ignore[assignment]
 
     next_state: AgentState = dict(state)
     next_state["intent"] = intent
+    next_state["intent_prompt_profile"] = profile_name
     try:
         intent_distribution.labels(intent=intent).inc()
     except Exception:
@@ -205,23 +216,52 @@ async def classify_intent(state: AgentState) -> AgentState:
         "classify_intent",
         latency_ms=(time.perf_counter() - start) * 1000.0,
         intent=intent,
+        intent_profile=profile_name,
         status="ok",
     )
     _finish_otel_span(
         span_ctx,
         otel_span,
         intent=intent,
+        intent_profile=profile_name,
         latency_ms=(time.perf_counter() - start) * 1000.0,
     )
     return next_state
 
 
 def _intent_to_category(intent: Intent | None) -> str | None:
-    if intent in ("order_status", "return_request"):
+    if intent in ("order_status", "return_request", "cancel_order", "change_order", "track_order"):
         return "orders"
-    if intent in ("account_issue", "complaint"):
+    if intent in (
+        "account_issue",
+        "complaint",
+        "create_account",
+        "delete_account",
+        "edit_account",
+        "recover_password",
+        "registration_problems",
+        "switch_account",
+        "contact_customer_service",
+        "contact_human_agent",
+        "newsletter_subscription",
+    ):
         return "account"
-    if intent == "product_qa":
+    if intent in (
+        "product_qa",
+        "delivery_options",
+        "delivery_period",
+        "change_shipping_address",
+        "set_up_shipping_address",
+        "check_invoice",
+        "get_invoice",
+        "payment_issue",
+        "check_payment_methods",
+        "check_cancellation_fee",
+        "check_refund_policy",
+        "get_refund",
+        "track_refund",
+        "review",
+    ):
         return "product"
     return None
 

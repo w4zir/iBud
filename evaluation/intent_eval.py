@@ -91,7 +91,8 @@ def _compute_metrics(results: List[ExampleResult]) -> Tuple[Dict[str, Any], Dict
     valid = [r for r in results if r.error is None and r.predicted_intent is not None]
     total_examples = len(valid)
     correct_examples = sum(1 for r in valid if r.is_correct)
-    failed_examples = len(results) - total_examples
+    incorrect_examples = total_examples - correct_examples  # wrongly classified (had prediction but wrong)
+    failed_examples = len(results) - total_examples  # no valid prediction (error or missing intent)
 
     accuracy = (correct_examples / total_examples) if total_examples > 0 else None
 
@@ -150,6 +151,7 @@ def _compute_metrics(results: List[ExampleResult]) -> Tuple[Dict[str, Any], Dict
         "macro_f1": macro_f1,
         "total_examples": total_examples,
         "correct_examples": correct_examples,
+        "incorrect_examples": incorrect_examples,
         "failed_examples": failed_examples,
     }
 
@@ -306,6 +308,7 @@ async def _run_intent_eval(
     model_provider: Optional[str],
     model_name: Optional[str],
     prompt_version: Optional[str],
+    intent_prompt_profile: Optional[str],
     extra_metadata: Optional[Dict[str, Any]],
 ) -> Dict[str, Any]:
     rows = _load_testset(
@@ -333,15 +336,16 @@ async def _run_intent_eval(
             split = str(row.get("split") or "bitext")
 
             try:
-                resp = client.post(
-                    f"{backend_url}/chat/",
-                    json={
-                        "session_id": None,
-                        "user_id": "intent-eval",
-                        "message": q,
-                        "dataset": dataset_key,
-                    },
-                )
+                payload: Dict[str, Any] = {
+                    "session_id": None,
+                    "user_id": "intent-eval",
+                    "message": q,
+                    "dataset": dataset_key,
+                }
+                if intent_prompt_profile:
+                    payload["intent_prompt_profile"] = intent_prompt_profile
+
+                resp = client.post(f"{backend_url}/chat/intent", json=payload)
                 resp.raise_for_status()
                 data = resp.json()
                 if not isinstance(data, dict):
@@ -487,6 +491,15 @@ def main() -> None:
         help="Optional prompt version string for experiment tracking.",
     )
     parser.add_argument(
+        "--intent-prompt-profile",
+        type=str,
+        default=None,
+        help=(
+            "Optional intent prompt profile to use for classification "
+            '(for example "default" or "bitext").'
+        ),
+    )
+    parser.add_argument(
         "--metadata-json",
         type=str,
         default=None,
@@ -550,6 +563,7 @@ def main() -> None:
                 model_provider=args.model_provider,
                 model_name=args.model_name,
                 prompt_version=args.prompt_version,
+                intent_prompt_profile=args.intent_prompt_profile,
                 extra_metadata=extra_metadata,
             )
         )

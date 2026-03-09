@@ -14,6 +14,16 @@ class ChatRequest(BaseModel):
     dataset: Optional[str] = "wixqa"
 
 
+class IntentClassifyRequest(BaseModel):
+    session_id: Optional[str] = None
+    user_id: str
+    message: str
+    # Optional dataset key for retrieval context (e.g. "wixqa", "bitext").
+    dataset: Optional[str] = "wixqa"
+    # Optional prompt profile override for intent classification (e.g. "default", "bitext").
+    intent_prompt_profile: Optional[str] = None
+
+
 class Source(BaseModel):
     content: str
     category: Optional[str] = None
@@ -35,6 +45,14 @@ class ChatResponse(BaseModel):
     ticket_id: Optional[str] = None
 
 
+class IntentClassifyResponse(BaseModel):
+    session_id: str
+    # Classified intent label (coarse or Bitext fine-grained, depending on profile).
+    intent: Optional[str] = None
+    # Resolved prompt profile used for this classification.
+    intent_prompt_profile: Optional[str] = None
+
+
 class SessionMessage(BaseModel):
     role: str
     content: str
@@ -54,7 +72,9 @@ class HealthResponse(BaseModel):
 
 __all__ = [
     "ChatRequest",
+    "IntentClassifyRequest",
     "ChatResponse",
+    "IntentClassifyResponse",
     "Source",
     "SessionMessage",
     "SessionHistoryResponse",

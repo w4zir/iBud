@@ -101,3 +101,32 @@ def test_sessions_history_endpoint(monkeypatch):
     roles = [m["role"] for m in hist_data["messages"]]
     assert "user" in roles and "assistant" in roles
 
+
+@pytest.mark.integration
+def test_chat_intent_endpoint_persists_and_classifies(monkeypatch):
+    def fake_classify_intent(state):  # type: ignore[arg-type]
+        new_state = dict(state)
+        new_state["intent"] = "cancel_order"
+        new_state["intent_prompt_profile"] = state.get("intent_prompt_profile") or "default"
+        return new_state
+
+    import backend.agent.nodes as nodes_module
+
+    monkeypatch.setattr(nodes_module, "classify_intent", fake_classify_intent)
+
+    resp = client.post(
+        "/chat/intent",
+        json={
+            "session_id": None,
+            "user_id": "intent-user",
+            "message": "please cancel my order",
+            "dataset": "bitext",
+            "intent_prompt_profile": "bitext",
+        },
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["session_id"]
+    assert data["intent"] == "cancel_order"
+    assert data["intent_prompt_profile"] == "bitext"
+

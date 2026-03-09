@@ -153,3 +153,84 @@ def test_load_testset_supports_indices_and_limit(tmp_path: Path, monkeypatch) ->
     assert len(limited) == 3
     assert [r["id"] for r in limited] == ["row-0", "row-1", "row-2"]
 
+
+@pytest.mark.asyncio
+async def test_run_intent_eval_calls_intent_endpoint(monkeypatch, tmp_path: Path) -> None:
+    rows = [
+        {
+            "id": "row-1",
+            "split": "bitext_sampled",
+            "question": "Q1",
+            "answer": "A1",
+            "supporting_article": "S1",
+            "intent": "cancel_order",
+        }
+    ]
+    test_path = tmp_path / "bitext_testset.json"
+    test_path.write_text(json.dumps(rows), encoding="utf-8")
+
+    called: Dict[str, Any] = {}
+
+    class FakeResponse:
+        def __init__(self, payload: Dict[str, Any]):
+            self._payload = payload
+
+        def raise_for_status(self) -> None:
+            return None
+
+        def json(self) -> Dict[str, Any]:
+            return self._payload
+
+    class FakeClient:
+        def __init__(self, timeout: float | None = None) -> None:
+            self.timeout = timeout
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return False
+
+        def post(self, url: str, json: Dict[str, Any]):
+            called["url"] = url
+            called["json"] = json
+            return FakeResponse(
+                {
+                    "session_id": "sess-1",
+                    "intent": "cancel_order",
+                }
+            )
+
+    async def fake_persist_run_and_predictions(
+        *, run_meta, results, metrics, confusion
+    ):
+        return "run-1"
+
+    monkeypatch.setattr(intent_eval, "httpx", type("X", (), {"Client": FakeClient}))
+    monkeypatch.setattr(
+        intent_eval,
+        "_persist_run_and_predictions",
+        fake_persist_run_and_predictions,
+    )
+
+    summary = await intent_eval._run_intent_eval(
+        backend_url="http://localhost:8000",
+        dataset_key="bitext",
+        testset_path=test_path,
+        limit=None,
+        indices=None,
+        randomize=False,
+        random_seed=None,
+        experiment_name="exp",
+        model_provider="ollama",
+        model_name="llama",
+        prompt_version="intent-v1",
+        intent_prompt_profile="bitext",
+        extra_metadata=None,
+    )
+
+    assert called["url"].endswith("/chat/intent")
+    assert called["json"]["dataset"] == "bitext"
+    assert called["json"]["intent_prompt_profile"] == "bitext"
+    assert summary["experiment_name"] == "exp"
+

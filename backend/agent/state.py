@@ -4,12 +4,40 @@ from typing import Any, Dict, List, Literal, Optional, TypedDict
 
 
 Intent = Literal[
+    # Coarse-grained intents used by the main chat agent.
     "order_status",
     "return_request",
     "product_qa",
     "account_issue",
     "complaint",
     "other",
+    # Fine-grained Bitext intents used for intent-eval experiments.
+    "cancel_order",
+    "change_order",
+    "change_shipping_address",
+    "check_cancellation_fee",
+    "check_invoice",
+    "check_payment_methods",
+    "check_refund_policy",
+    "contact_customer_service",
+    "contact_human_agent",
+    "create_account",
+    "delete_account",
+    "delivery_options",
+    "delivery_period",
+    "edit_account",
+    "get_invoice",
+    "get_refund",
+    "newsletter_subscription",
+    "payment_issue",
+    "place_order",
+    "recover_password",
+    "registration_problems",
+    "review",
+    "set_up_shipping_address",
+    "switch_account",
+    "track_order",
+    "track_refund",
 ]
 
 
@@ -49,6 +77,8 @@ class AgentState(TypedDict, total=False):
     trace_id: Optional[str]
     # Active knowledge-base dataset key (e.g. "wixqa", "bitext").
     dataset: Optional[str]
+    # Optional prompt profile name for intent classification (e.g. "default", "bitext").
+    intent_prompt_profile: Optional[str]
     messages: List[Dict[str, Any]]
     intent: Optional[Intent]
     retrieved_docs: List[RetrievedDocState]

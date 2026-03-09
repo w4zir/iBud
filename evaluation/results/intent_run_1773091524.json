@@ -1,0 +1,76 @@
+{
+  "run_id": "31ebda62-5d95-4a76-8039-f5b1e7cce144",
+  "experiment_name": "bitext-intent-v5",
+  "dataset_key": "bitext",
+  "model_provider": "ollama",
+  "model_name": "llama3.2",
+  "prompt_version": "intent-v1",
+  "metrics": {
+    "accuracy": 0.6333333333333333,
+    "macro_precision": 0.7166666666666667,
+    "macro_recall": 0.6333333333333333,
+    "macro_f1": 0.7333333333333333,
+    "total_examples": 30,
+    "correct_examples": 19,
+    "incorrect_examples": 11,
+    "failed_examples": 0
+  },
+  "confusion": {
+    "cancel_order": {
+      "cancel_order": 2
+    },
+    "change_order": {
+      "change_order": 2
+    },
+    "change_shipping_address": {
+      "change_shipping_address": 2
+    },
+    "check_cancellation_fee": {
+      "complaint": 1,
+      "check_cancellation_fee": 1
+    },
+    "check_invoice": {
+      "get_invoice": 1,
+      "check_invoice": 1
+    },
+    "check_payment_methods": {
+      "check_payment_methods": 2
+    },
+    "check_refund_policy": {
+      "complaint": 1,
+      "payment_issue": 1
+    },
+    "complaint": {
+      "complaint": 1,
+      "contact_customer_service": 1
+    },
+    "contact_customer_service": {
+      "contact_customer_service": 2
+    },
+    "contact_human_agent": {
+      "contact_customer_service": 1,
+      "contact_human_agent": 1
+    },
+    "create_account": {
+      "create_account": 1,
+      "contact_human_agent": 1
+    },
+    "delete_account": {
+      "delete_account": 1,
+      "contact_human_agent": 1
+    },
+    "delivery_options": {
+      "delivery_options": 2
+    },
+    "delivery_period": {
+      "delivery_options": 1,
+      "payment_issue": 1
+    },
+    "edit_account": {
+      "contact_human_agent": 1,
+      "edit_account": 1
+    }
+  },
+  "backend_url": "http://localhost:8000",
+  "timestamp": 1773091524
+}

@@ -313,13 +313,14 @@ With the backend running and Bitext ingested/testsets built:
   --experiment-name "bitext-intent-v1" `
   --model-provider ollama `
   --model-name llama3.2 `
-  --prompt-version "intent-v1"
+  --prompt-version "intent-v1" `
+  --intent-prompt-profile bitext
 ```
 
 This:
 
-- Sends each Bitext question to `/chat` with `dataset="bitext"`.
-- Reads the classified `intent` from the chat response.
+- Sends each Bitext question to `/chat/intent` with `dataset="bitext"` and the `bitext` prompt profile.
+- Reads the classified `intent` from the intent-only response.
 - Compares it to the ground-truth `intent` in the testset.
 - Prints a JSON summary (accuracy, macro precision/recall/F1, confusion) to the terminal.
 - Writes a summary artifact under `evaluation/results/intent_run_<timestamp>.json`.

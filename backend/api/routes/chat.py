@@ -13,6 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...agent import graph as agent_graph
+from ...agent import nodes as agent_nodes
 from ...agent.state import AgentState
 from ...config import log_event
 from ...db.models import Message, Session
@@ -27,7 +28,13 @@ from ...observability.prometheus_metrics import (
 )
 from ...observability.otel import get_current_trace_ids, get_tracer
 from ...observability.warehouse import record_outcome, update_session_analytics
-from ..models import ChatRequest, ChatResponse, Source
+from ..models import (
+    ChatRequest,
+    ChatResponse,
+    IntentClassifyRequest,
+    IntentClassifyResponse,
+    Source,
+)
 
 
 router = APIRouter(prefix="/chat", tags=["chat"])
@@ -329,6 +336,105 @@ async def _run_agent_flow(
             pass
 
 
+async def _run_intent_only_flow(
+    db: AsyncSession,
+    req: IntentClassifyRequest,
+    request_id: str,
+) -> IntentClassifyResponse:
+    """
+    Persist a user message like the main chat flow but run only the intent
+    classification node and return the classified intent.
+    """
+    start = time.perf_counter()
+    span_ctx = None
+    root_span = None
+    request_status = "ok"
+    try:
+        session = await _get_or_create_session(db, req.session_id, req.user_id)
+        tracer = get_tracer()
+        if tracer is not None:
+            span_ctx = tracer.start_as_current_span("intent_only_conversation")
+            root_span = span_ctx.__enter__()
+            root_span.set_attribute("session_id", str(session.id))
+            root_span.set_attribute("user_id", req.user_id)
+            root_span.set_attribute("channel", "api")
+
+        log_event(
+            "chat",
+            "intent_only_request_received",
+            request_id=request_id,
+            session_id=str(session.id),
+            user_id=req.user_id,
+            message_len=len(req.message),
+        )
+
+        user_msg = Message(
+            session_id=session.id,
+            role="user",
+            content=req.message,
+        )
+        db.add(user_msg)
+        await db.flush()
+        await db.commit()
+
+        history = await _load_message_history(db, session_id=session.id)
+
+        state: AgentState = {
+            "session_id": str(session.id),
+            "user_id": req.user_id,
+            "request_id": request_id,
+            "messages": history,
+            "dataset": (req.dataset or "wixqa").lower(),
+        }
+        if req.intent_prompt_profile:
+            state["intent_prompt_profile"] = req.intent_prompt_profile
+
+        trace_id, _ = get_current_trace_ids()
+        if trace_id:
+            state["trace_id"] = trace_id
+
+        final_state = await agent_nodes.classify_intent(state)  # type: ignore[arg-type]
+        intent = final_state.get("intent")
+        intent_profile = final_state.get("intent_prompt_profile")
+
+        log_event(
+            "chat",
+            "intent_only_classified",
+            request_id=request_id,
+            session_id=str(session.id),
+            intent=intent,
+            intent_profile=intent_profile,
+        )
+
+        if root_span is not None:
+            root_span.set_attribute("intent", str(intent or ""))
+            root_span.set_attribute("intent_profile", str(intent_profile or ""))
+
+        return IntentClassifyResponse(
+            session_id=str(session.id),
+            intent=str(intent) if intent is not None else None,
+            intent_prompt_profile=str(intent_profile) if intent_profile is not None else None,
+        )
+    except Exception:
+        request_status = "intent_error"
+        try:
+            error_count.labels(error_type="agent_error", component="chat").inc()
+        except Exception:
+            pass
+        raise
+    finally:
+        elapsed = time.perf_counter() - start
+        if root_span is not None:
+            root_span.set_attribute("latency_ms", elapsed * 1000.0)
+        if span_ctx is not None:
+            span_ctx.__exit__(None, None, None)
+        try:
+            request_count.labels(status=request_status).inc()
+            request_latency.observe(elapsed)
+        except Exception:
+            pass
+
+
 @router.post("/", response_model=ChatResponse)
 async def chat(
     req: ChatRequest,
@@ -345,6 +451,22 @@ async def chat(
     resp = await _run_agent_flow(db, req, request_id, use_cache=True)
     return JSONResponse(content=resp.dict(), headers={"X-Request-ID": request_id})
 
+
+@router.post("/intent", response_model=IntentClassifyResponse)
+async def chat_intent(
+    req: IntentClassifyRequest,
+    request: Request,
+    db: AsyncSession = Depends(get_session),
+) -> JSONResponse:
+    if not req.message.strip():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="message must not be empty",
+        )
+
+    request_id = getattr(request.state, "request_id", "")
+    resp = await _run_intent_only_flow(db, req, request_id)
+    return JSONResponse(content=resp.dict(), headers={"X-Request-ID": request_id})
 
 @router.post("/stream")
 async def chat_stream(

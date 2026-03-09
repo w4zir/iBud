@@ -20,6 +20,7 @@ At a high level the system consists of:
 - **Backend API (`backend/`)**
   - FastAPI application (`backend/main.py`) exposing:
     - `POST /chat` — main chat endpoint.
+    - `POST /chat/intent` — intent-only endpoint that persists the message and runs just the classifier node.
     - `GET /sessions/{session_id}/history` — session history.
     - `GET /health` — health and dependency checks.
     - `admin` routes for maintenance and debugging.
@@ -32,6 +33,7 @@ At a high level the system consists of:
   - Node implementations in `nodes.py` use LLMs, retrievers, and tools.
   - Agent state schema in `state.py` tracks user messages, intent, retrieved docs, tool calls/results, escalation flags, and tickets.
   - System prompts in `prompts.py` for intent classification, planning, answering, and escalation decisions.
+  - Intent prompt profiles in `intent_prompts.py` (for example `default` vs `bitext`) which can be selected via state or `INTENT_PROMPT_PROFILE`.
 
 - **RAG pipeline (`backend/rag/`)**
   - **Chunking** (`chunker.py`): section-aware splitting of WixQA help-center articles into parent documents and child chunks.
