@@ -1,0 +1,48 @@
+{
+  "metrics": {
+    "faithfulness": null,
+    "answer_relevancy": null,
+    "context_precision": null,
+    "context_recall": null
+  },
+  "by_split": {},
+  "num_rows": 2,
+  "valid_counts": {
+    "faithfulness": 0,
+    "answer_relevancy": 0,
+    "context_precision": 0,
+    "context_recall": 0
+  },
+  "failed_rows": [
+    {
+      "question": "question about cancelling order {{Order Number}}",
+      "split": "bitext_sampled",
+      "error": "timed out"
+    }
+  ],
+  "thresholds": {
+    "min_valid_rows": 1.0,
+    "min_faithfulness": 0.3,
+    "min_answer_relevancy": 0.3
+  },
+  "threshold_details": {
+    "min_valid_rows": {
+      "required": 1,
+      "actual": 0,
+      "passed": false
+    },
+    "min_faithfulness": {
+      "required": 0.3,
+      "actual": null,
+      "passed": false
+    },
+    "min_answer_relevancy": {
+      "required": 0.3,
+      "actual": null,
+      "passed": false
+    }
+  },
+  "passed": false,
+  "backend_url": "http://localhost:8000",
+  "timestamp": 1773061050
+}

@@ -228,6 +228,72 @@ class EvaluationScore(Base):
     session: Mapped[Optional[Session]] = relationship(back_populates="evaluation_scores")
 
 
+class IntentEvalRun(Base):
+    __tablename__ = "intent_eval_runs"
+
+    id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False),
+        primary_key=True,
+        server_default=text("gen_random_uuid()"),
+    )
+    experiment_name: Mapped[Optional[str]] = mapped_column(String(200))
+    dataset_key: Mapped[Optional[str]] = mapped_column(String(50))
+    model_provider: Mapped[Optional[str]] = mapped_column(String(50))
+    model_name: Mapped[Optional[str]] = mapped_column(String(200))
+    prompt_version: Mapped[Optional[str]] = mapped_column(String(100))
+    metadata_: Mapped[Optional[Dict[str, Any]]] = mapped_column("metadata", JSONB)
+    accuracy: Mapped[Optional[float]] = mapped_column(Float)
+    macro_precision: Mapped[Optional[float]] = mapped_column(Float)
+    macro_recall: Mapped[Optional[float]] = mapped_column(Float)
+    macro_f1: Mapped[Optional[float]] = mapped_column(Float)
+    total_examples: Mapped[int] = mapped_column(Integer)
+    correct_examples: Mapped[int] = mapped_column(Integer)
+    failed_examples: Mapped[int] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+
+    predictions: Mapped[List["IntentEvalPrediction"]] = relationship(
+        back_populates="run",
+        cascade="all, delete-orphan",
+    )
+
+
+class IntentEvalPrediction(Base):
+    __tablename__ = "intent_eval_predictions"
+
+    id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False),
+        primary_key=True,
+        server_default=text("gen_random_uuid()"),
+    )
+    run_id: Mapped[str] = mapped_column(
+        UUID(as_uuid=False),
+        ForeignKey("intent_eval_runs.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    test_id: Mapped[Optional[str]] = mapped_column(String(200))
+    split: Mapped[Optional[str]] = mapped_column(String(100))
+    question: Mapped[Optional[str]] = mapped_column(Text)
+    expected_intent: Mapped[Optional[str]] = mapped_column(String(100))
+    predicted_intent: Mapped[Optional[str]] = mapped_column(String(100))
+    is_correct: Mapped[Optional[bool]] = mapped_column(Boolean)
+    session_id: Mapped[Optional[str]] = mapped_column(
+        UUID(as_uuid=False),
+        ForeignKey("sessions.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    error: Mapped[Optional[str]] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+    )
+
+    run: Mapped[IntentEvalRun] = relationship(back_populates="predictions")
+    session: Mapped[Optional[Session]] = relationship()
+
+
 __all__ = [
     "Base",
     "Document",
@@ -238,5 +304,7 @@ __all__ = [
     "AgentSpan",
     "Outcome",
     "EvaluationScore",
+    "IntentEvalRun",
+    "IntentEvalPrediction",
 ]
 

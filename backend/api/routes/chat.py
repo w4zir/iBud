@@ -220,7 +220,7 @@ async def _run_agent_flow(
             )
             _emit_warehouse_updates(
                 session_id=str(session.id),
-                intent=None,
+                intent=cached_payload.get("intent"),
                 escalated=bool(cached_payload.get("escalated", False)),
                 completed=True,
             )
@@ -274,6 +274,7 @@ async def _run_agent_flow(
             "sources": [s.dict() for s in sources],
             "tools_used": tools_used,
             "escalated": bool(final_state.get("should_escalate", False)),
+            "intent": final_state.get("intent"),
             "ticket_id": final_state.get("ticket_id"),
         }
 

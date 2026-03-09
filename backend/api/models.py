@@ -30,6 +30,8 @@ class ChatResponse(BaseModel):
     sources: List[Source]
     tools_used: List[str]
     escalated: bool
+    # Optional classified intent for this turn/session; populated by the agent.
+    intent: Optional[str] = None
     ticket_id: Optional[str] = None
 
 

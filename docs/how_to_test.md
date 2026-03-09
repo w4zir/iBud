@@ -268,7 +268,7 @@ with either a full or sampled Bitext testset.
      --testset-path evaluation/bitext_testset_full.json
    ```
 
-### 7.1 Evaluation result JSON schema
+### 7.3 Evaluation result JSON schema
 
 Each `evaluation/results/run_<timestamp>.json` file includes:
 
@@ -296,7 +296,86 @@ Each `evaluation/results/run_<timestamp>.json` file includes:
 
    These RAGAS-specific env vars only affect evaluation runs and do not change which model the agent uses for live chats.
 
-## 8. Troubleshooting
+## 8. Intent classification evaluation (Bitext)
+
+In addition to RAGAS, you can directly evaluate the agent's **intent classification** against the Bitext testsets.
+
+### 8.1 Run Bitext intent evaluation
+
+With the backend running and Bitext ingested/testsets built:
+
+```powershell
+.\venv\Scripts\python -m evaluation.intent_eval `
+  --backend-url http://localhost:8000 `
+  --dataset-key bitext `
+  --testset-path evaluation/bitext_testset_sampled.json `
+  --limit 200 `
+  --experiment-name "bitext-intent-v1" `
+  --model-provider ollama `
+  --model-name llama3.2 `
+  --prompt-version "intent-v1"
+```
+
+This:
+
+- Sends each Bitext question to `/chat` with `dataset="bitext"`.
+- Reads the classified `intent` from the chat response.
+- Compares it to the ground-truth `intent` in the testset.
+- Prints a JSON summary (accuracy, macro precision/recall/F1, confusion) to the terminal.
+- Writes a summary artifact under `evaluation/results/intent_run_<timestamp>.json`.
+- Persists run + per-example rows into Postgres tables:
+  - `intent_eval_runs`
+  - `intent_eval_predictions`
+  - and a summary row in `evaluation_scores.metadata` with `pipeline="intent_eval"`.
+
+### 8.2 Regenerate summaries from Postgres
+
+To rebuild a summary for a previously stored run without re-calling the backend:
+
+```powershell
+.\venv\Scripts\python -m evaluation.intent_eval --from-db --run-id <run_uuid>
+```
+
+Or, to regenerate the most recent run for a given experiment name:
+
+```powershell
+.\venv\Scripts\python -m evaluation.intent_eval --from-db --from-experiment "bitext-intent-v1"
+```
+
+### 8.3 Example SQL queries
+
+Some common patterns:
+
+```sql
+-- List recent intent-eval runs with basic metrics
+SELECT
+  id,
+  experiment_name,
+  dataset_key,
+  model_provider,
+  model_name,
+  prompt_version,
+  accuracy,
+  macro_f1,
+  created_at
+FROM intent_eval_runs
+ORDER BY created_at DESC
+LIMIT 20;
+
+-- Inspect misclassified examples for a specific run
+SELECT
+  p.test_id,
+  p.split,
+  p.question,
+  p.expected_intent,
+  p.predicted_intent,
+  p.error
+FROM intent_eval_predictions p
+WHERE p.run_id = '<run_uuid>'
+  AND COALESCE(p.is_correct, FALSE) = FALSE;
+```
+
+## 9. Troubleshooting
 
 - **API not reachable (`connection refused`)**
   - Ensure `docker compose ps` shows `backend` as `Up`.
@@ -318,7 +397,7 @@ Each `evaluation/results/run_<timestamp>.json` file includes:
   - Check that `BACKEND_BASE_URL` (if set) points to the correct backend URL.
   - Ensure CORS is configured via `CORS_ORIGINS` in `.env` (e.g. `http://localhost:8501`).
 
-## 9. Alerting and SLO tests (Phase 10)
+## 10. Alerting and SLO tests (Phase 10)
 
 Run alert and dashboard structure tests:
 
@@ -331,7 +410,7 @@ Validate that:
 - All required alerts exist with expressions, severity labels, and runbook annotations.
 - Audience dashboard JSON files are valid and include expected key panels.
 
-## 10. Remediation tests (Phase 11)
+## 11. Remediation tests (Phase 11)
 
 Run remediation unit tests:
 
