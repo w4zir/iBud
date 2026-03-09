@@ -54,6 +54,7 @@ class Retriever:
         tier_filter: Optional[int] = None,
         use_cache: bool = True,
         rerank: bool = True,
+        source: Optional[str] = None,
     ) -> List[RetrievedDoc]:
         if not query or not query.strip():
             return []
@@ -66,6 +67,7 @@ class Retriever:
                 tier_filter=tier_filter,
                 top_k=top_k,
                 rerank=rerank,
+                source=source,
             )
             cache_key = build_cache_key(parts)
             cached = await get_cached(cache_key)
@@ -100,6 +102,7 @@ class Retriever:
                 top_k=top_k,
                 category=category,
                 tier_filter=tier_filter,
+                source=source,
             )
             try:
                 db_latency.labels(operation="similarity_search").observe(
@@ -142,6 +145,7 @@ class Retriever:
         top_k: int,
         category: Optional[str],
         tier_filter: Optional[int],
+        source: Optional[str],
     ) -> List[RetrievedDoc]:
         distance = Document.embedding.cosine_distance(query_vector)
         stmt = select(
@@ -154,6 +158,9 @@ class Retriever:
 
         if tier_filter is not None:
             stmt = stmt.where(Document.doc_tier == tier_filter)
+
+        if source:
+            stmt = stmt.where(Document.source == source)
 
         stmt = stmt.order_by(distance).limit(top_k)
 

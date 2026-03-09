@@ -169,7 +169,15 @@ async def test_retriever_records_embedding_and_rerank_latency(monkeypatch):
     monkeypatch.setattr("backend.rag.retriever.get_cached", AsyncMock(return_value=None))
     monkeypatch.setattr("backend.rag.retriever.set_cached", AsyncMock())
 
-    async def fake_similarity_search(self, session, query_vector, top_k, category, tier_filter):
+    async def fake_similarity_search(
+        self,
+        session,
+        query_vector,
+        top_k,
+        category,
+        tier_filter,
+        source=None,
+    ):
         return [
             RetrievedDoc(
                 content="doc",

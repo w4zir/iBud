@@ -10,6 +10,8 @@ class ChatRequest(BaseModel):
     session_id: Optional[str] = None
     user_id: str
     message: str
+    # Optional dataset key for retrieval (e.g. "wixqa", "bitext").
+    dataset: Optional[str] = "wixqa"
 
 
 class Source(BaseModel):

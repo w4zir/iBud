@@ -80,6 +80,11 @@ def _build_logger() -> logging.Logger:
 
 LOGGER = _build_logger()
 
+# Active dataset key for the current run; this is propagated to backend
+# calls so the chat API can route retrieval to the correct corpus. It
+# defaults to the primary WixQA KB.
+ACTIVE_DATASET_KEY: str = "wixqa"
+
 
 def _load_agent_responses_cache(path: Path | None = None) -> Dict[str, Dict[str, Any]]:
     """Load agent response cache from JSON; tolerate missing/empty/invalid file."""
@@ -231,9 +236,10 @@ def _load_testset(
     indices: List[int] | None = None,
     randomize: bool = False,
     random_seed: int | None = None,
+    path: Path | None = None,
 ) -> List[Dict[str, Any]]:
     """
-    Load the WixQA testset with optional filtering.
+    Load a JSON testset with optional filtering.
 
     Args:
         limit: Optional maximum number of rows to return. Applied
@@ -245,7 +251,8 @@ def _load_testset(
         random_seed: Optional seed used when randomize is True to
             make shuffling reproducible.
     """
-    with TESTSET_PATH.open("r", encoding="utf-8") as f:
+    p = path if path is not None else TESTSET_PATH
+    with p.open("r", encoding="utf-8") as f:
         rows: List[Dict[str, Any]] = json.load(f)
 
     # Explicit index-based selection takes precedence over randomisation.
@@ -345,6 +352,8 @@ def _run_backend_calls(
                         "session_id": None,
                         "user_id": "ragas-eval",
                         "message": q,
+                        # Tell the backend which KB dataset to use.
+                        "dataset": ACTIVE_DATASET_KEY,
                     },
                 )
                 resp.raise_for_status()
@@ -417,9 +426,11 @@ def run_ragas_eval(
     randomize: bool = False,
     random_seed: int | None = None,
     use_local: bool = False,
+    dataset_key: str | None = None,
+    testset_path: Path | str | None = None,
 ) -> Dict[str, Any]:
     """
-    Run RAGAS evaluation over the WixQA test set.
+    Run RAGAS evaluation over a JSON test set.
 
     Args:
         backend_url: Base URL of the backend FastAPI service.
@@ -433,11 +444,20 @@ def run_ragas_eval(
             evaluation/agent_responses.json to avoid re-calling the
             backend for questions already cached.
     """
+    # Resolve dataset key and testset path defaults.
+    global ACTIVE_DATASET_KEY
+    ACTIVE_DATASET_KEY = (dataset_key or os.getenv("RAGAS_DATASET_KEY") or "wixqa").lower()
+
+    resolved_path: Path | None = None
+    if testset_path is not None:
+        resolved_path = Path(testset_path)
+
     rows = _load_testset(
         limit=limit,
         indices=indices,
         randomize=randomize,
         random_seed=random_seed,
+        path=resolved_path,
     )
     if not rows:
         raise RuntimeError(f"No rows loaded from {TESTSET_PATH}")
@@ -684,6 +704,24 @@ def main() -> None:
             "responses when present, and save new responses there after calling the backend."
         ),
     )
+    parser.add_argument(
+        "--dataset-key",
+        type=str,
+        default="wixqa",
+        help=(
+            "Dataset key to send to the backend for retrieval "
+            "(for example 'wixqa' or 'bitext'). Defaults to 'wixqa'."
+        ),
+    )
+    parser.add_argument(
+        "--testset-path",
+        type=str,
+        default=None,
+        help=(
+            "Path to the JSON testset file to load. "
+            "Defaults to the WixQA testset when omitted."
+        ),
+    )
     args = parser.parse_args()
 
     indices = None
@@ -698,6 +736,8 @@ def main() -> None:
         randomize=args.randomize,
         random_seed=args.random_seed,
         use_local=args.use_local,
+        dataset_key=args.dataset_key,
+        testset_path=args.testset_path,
     )
     print(json.dumps(summary, indent=2))
 

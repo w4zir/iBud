@@ -111,7 +111,7 @@ docker compose exec ollama ollama pull llama3.2
 docker compose exec ollama ollama pull nomic-embed-text
 ```
 
-## 4. Ingest WixQA KB into pgvector
+## 4. Ingest knowledge-base datasets into pgvector
 
 Run the **WixQA** ingestion pipeline inside the backend container:
 
@@ -132,6 +132,19 @@ On success you’ll see a line like:
 ```text
 WixQA ingestion complete. documents (source=wixqa) count=<N> ...
 ```
+
+Optionally, you can also ingest the **Bitext** customer-support QA dataset as a
+secondary corpus:
+
+```powershell
+docker compose exec -T backend python -m backend.rag.ingest_bitext
+```
+
+This:
+
+- Loads the HuggingFace dataset `bitext/Bitext-customer-support-llm-chatbot-training-dataset`
+- Builds a support record per row from `instruction` + `response`
+- Embeds each record and inserts rows into `documents` with `source="bitext"`, `doc_tier=1`
 
 ## 5. Seed mock orders
 

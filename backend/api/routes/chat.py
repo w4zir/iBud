@@ -238,6 +238,8 @@ async def _run_agent_flow(
             "user_id": req.user_id,
             "request_id": request_id,
             "messages": history,
+            # Default to "wixqa" when the client does not explicitly choose a dataset.
+            "dataset": (req.dataset or "wixqa").lower(),
         }
         trace_id, _ = get_current_trace_ids()
         if trace_id:

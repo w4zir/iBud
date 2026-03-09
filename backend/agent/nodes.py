@@ -232,6 +232,11 @@ async def retrieve_context(state: AgentState) -> AgentState:
     user_text = _get_latest_user_message(state)
     intent = state.get("intent")
     category = _intent_to_category(intent)
+    dataset = (state.get("dataset") or "wixqa").lower()
+
+    # Dataset key is expected to match the Document.source value for the
+    # underlying corpus (for example "wixqa", "bitext").
+    source_filter = dataset
 
     retriever = Retriever()
     docs: List[RetrievedDoc] = await retriever.search(
@@ -241,6 +246,7 @@ async def retrieve_context(state: AgentState) -> AgentState:
         tier_filter=1,
         use_cache=True,
         rerank=True,
+        source=source_filter,
     )
     serialized: List[RetrievedDocState] = [
         {

@@ -47,6 +47,8 @@ class AgentState(TypedDict, total=False):
     user_id: Optional[str]
     request_id: Optional[str]
     trace_id: Optional[str]
+    # Active knowledge-base dataset key (e.g. "wixqa", "bitext").
+    dataset: Optional[str]
     messages: List[Dict[str, Any]]
     intent: Optional[Intent]
     retrieved_docs: List[RetrievedDocState]

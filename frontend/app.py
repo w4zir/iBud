@@ -26,6 +26,9 @@ def _init_session_state() -> None:
         st.session_state.show_sources = True
     if "llm_provider" not in st.session_state:
         st.session_state.llm_provider = os.getenv("LLM_PROVIDER", "ollama")
+    if "dataset" not in st.session_state:
+        # Default KB dataset; matches Document.source="wixqa".
+        st.session_state.dataset = "wixqa"
 
 
 def _render_sidebar() -> None:
@@ -34,6 +37,19 @@ def _render_sidebar() -> None:
     st.session_state.user_id = user_id or st.session_state.user_id
 
     st.sidebar.markdown(f"**LLM Provider:** `{st.session_state.llm_provider}`")
+
+    st.sidebar.markdown("---")
+    dataset_label = {
+        "wixqa": "WixQA KB (articles)",
+        "bitext": "Bitext QA pairs",
+    }
+    dataset_key = st.sidebar.selectbox(
+        "Knowledge base dataset",
+        options=["wixqa", "bitext"],
+        format_func=lambda k: dataset_label.get(k, k),
+        index=0 if st.session_state.get("dataset", "wixqa") == "wixqa" else 1,
+    )
+    st.session_state.dataset = dataset_key
 
     new_session = st.sidebar.button("Start New Session")
     if new_session:
@@ -69,6 +85,7 @@ def _call_chat_api(
         "session_id": session_id,
         "user_id": user_id,
         "message": message,
+        "dataset": st.session_state.get("dataset", "wixqa"),
     }
     resp = requests.post(f"{base_url}/chat/", json=payload, timeout=60)
     resp.raise_for_status()
@@ -85,8 +102,9 @@ def _render_sources(sources: List[Dict[str, Any]]) -> None:
             score = src.get("score", 0.0)
             category = src.get("category") or "unknown"
             doc_tier = src.get("doc_tier", 1)
+            source = src.get("source") or "unknown"
             st.markdown(
-                f"**Source {idx}** — category: `{category}`, "
+                f"**Source {idx}** — dataset: `{source}`, category: `{category}`, "
                 f"tier: `{doc_tier}`, score: `{score:.2f}`"
             )
             st.write(src.get("content", "")[:500])

@@ -42,6 +42,8 @@ class CacheKeyParts:
     tier_filter: Optional[int]
     top_k: int
     rerank: bool
+    # Optional dataset/source identifier (for example "wixqa", "bitext").
+    source: Optional[str] = None
 
 
 def build_cache_key(parts: CacheKeyParts) -> str:
@@ -54,6 +56,7 @@ def build_cache_key(parts: CacheKeyParts) -> str:
         "tier_filter": parts.tier_filter,
         "top_k": parts.top_k,
         "rerank": parts.rerank,
+        "source": parts.source,
     }
     raw = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     digest = md5(raw.encode("utf-8")).hexdigest()

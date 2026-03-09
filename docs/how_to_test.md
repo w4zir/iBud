@@ -85,6 +85,9 @@ In addition to automated checks, you can manually validate key user journeys onc
 2. Open the Streamlit UI at `http://localhost:8501`.
 3. In the sidebar:
    - Set a `User ID` (e.g. `user-1`).
+   - Choose a **Knowledge base dataset**:
+     - `WixQA KB (articles)` — help-center articles ingested from `Wix/WixQA`
+     - `Bitext QA pairs` — labeled customer-support Q&A pairs from Bitext
    - Optionally toggle “Show sources” on or off.
 4. In the main chat area:
    - Ask an order-related question (e.g. “What is the status of my order?”).
@@ -94,6 +97,7 @@ In addition to automated checks, you can manually validate key user journeys onc
    - Assistant responses appear under your messages.
    - When applicable, a “Tools used” line indicates which tools were called.
    - When the agent escalates, a banner indicates a ticket was created and shows the ticket ID.
+   - Under **Sources**, each document includes a `dataset` label (the document `source`, for example `wixqa` or `bitext`) alongside category, tier, and score.
 
 ### 5.2 Chat via HTTP API
 
@@ -102,14 +106,14 @@ You can also call the API directly using `curl` or `Invoke-RestMethod`.
 ```powershell
 curl -X POST http://localhost:8000/chat/ `
   -H "Content-Type: application/json" `
-  -d '{ "session_id": null, "user_id": "manual-user", "message": "Hello" }'
+  -d '{ "session_id": null, "user_id": "manual-user", "message": "Hello", "dataset": "wixqa" }'
 ```
 
 The response includes:
 
 - `session_id` — use this to continue the conversation.
 - `response` — assistant answer text.
-- `sources` — retrieved documents (when available).
+- `sources` — retrieved documents (when available), including `dataset` (document `source`), `category`, `doc_tier`, and `score`.
 - `tools_used` — list of tool names invoked.
 - `escalated` / `ticket_id` — escalation status.
 
@@ -200,6 +204,10 @@ With `OTEL_ENABLED=true` and an OTLP endpoint configured:
 
 ## 7. RAG quality evaluation (RAGAS)
 
+You can now evaluate against both the WixQA and Bitext datasets.
+
+### 7.1 WixQA evaluation
+
 1. Ensure WixQA KB is ingested and backend is running.
 2. Build the WixQA testset:
 
@@ -207,7 +215,7 @@ With `OTEL_ENABLED=true` and an OTLP endpoint configured:
    .\venv\Scripts\python -m evaluation.build_wixqa_testset
    ```
 
-3. Run the RAGAS evaluation:
+3. Run the RAGAS evaluation (WixQA remains the default dataset):
 
    ```powershell
    .\venv\Scripts\python -m evaluation.ragas_eval --backend-url http://localhost:8000 --limit 50
@@ -217,6 +225,48 @@ With `OTEL_ENABLED=true` and an OTLP endpoint configured:
 
    - Overall scores for `faithfulness`, `answer_relevancy`, `context_precision`, `context_recall`
    - Per-split breakdown for ExpertWritten vs Simulated questions
+
+### 7.2 Bitext evaluation
+
+Bitext provides labeled customer-support Q&A pairs. You can evaluate the agent
+with either a full or sampled Bitext testset.
+
+1. Ensure the Bitext corpus is ingested (optional but recommended for realism):
+
+   ```powershell
+   docker compose exec -T backend python -m backend.rag.ingest_bitext
+   ```
+
+2. Build the Bitext testsets:
+
+   ```powershell
+   # Build both full and sampled Bitext testsets
+   .\venv\Scripts\python -m evaluation.build_bitext_testset --mode both --max-per-intent 50
+   ```
+
+   This writes:
+
+   - `evaluation/bitext_testset_full.json`
+   - `evaluation/bitext_testset_sampled.json`
+
+3. Run Bitext RAGAS evaluation with the sampled testset (recommended default):
+
+   ```powershell
+   .\venv\Scripts\python -m evaluation.ragas_eval `
+     --backend-url http://localhost:8000 `
+     --dataset-key bitext `
+     --testset-path evaluation/bitext_testset_sampled.json `
+     --limit 100
+   ```
+
+4. (Optional) Run a full Bitext evaluation:
+
+   ```powershell
+   .\venv\Scripts\python -m evaluation.ragas_eval `
+     --backend-url http://localhost:8000 `
+     --dataset-key bitext `
+     --testset-path evaluation/bitext_testset_full.json
+   ```
 
 ### 7.1 Evaluation result JSON schema
 
