@@ -322,7 +322,7 @@ This:
 - Sends each Bitext question to `/chat/intent` with `dataset="bitext"` and the `bitext` prompt profile.
 - Reads the classified `intent` from the intent-only response.
 - Compares it to the ground-truth `intent` in the testset.
-- Prints a JSON summary (accuracy, macro precision/recall/F1, confusion) to the terminal.
+- Prints a JSON summary (accuracy, macro precision/recall/F1, counts, etc.) to the terminal. Confusion is omitted by default; use `--print-confusion` to include it.
 - Writes a summary artifact under `evaluation/results/intent_run_<timestamp>.json`.
 - Persists run + per-example rows into Postgres tables:
   - `intent_eval_runs`

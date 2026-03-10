@@ -522,6 +522,11 @@ def main() -> None:
         default=None,
         help="Experiment name to regenerate the most recent run for when using --from-db.",
     )
+    parser.add_argument(
+        "--print-confusion",
+        action="store_true",
+        help="Include confusion counts in terminal output (default: omitted).",
+    )
 
     args = parser.parse_args()
 
@@ -568,8 +573,11 @@ def main() -> None:
             )
         )
 
-    # Print human-readable summary to the terminal.
-    print(json.dumps(summary, indent=2))
+    # Print a small summary to the terminal. Confusion can be large/noisy, so omit by default.
+    terminal_summary = dict(summary)
+    if not args.print_confusion:
+        terminal_summary.pop("confusion", None)
+    print(json.dumps(terminal_summary, indent=2))
 
 
 if __name__ == "__main__":
