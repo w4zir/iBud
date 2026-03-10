@@ -54,11 +54,12 @@ def create_app() -> FastAPI:
         exc: RequestValidationError,
     ):
         request_id = getattr(request.state, "request_id", "")
-        try:
-            request_count.labels(status="validation_error").inc()
-            error_count.labels(error_type="validation", component="api").inc()
-        except Exception:
-            pass
+        if request.url.path != "/chat/intent":
+            try:
+                request_count.labels(status="validation_error").inc()
+                error_count.labels(error_type="validation", component="api").inc()
+            except Exception:
+                pass
         log_event(
             "api",
             "validation_error",
@@ -74,11 +75,12 @@ def create_app() -> FastAPI:
     @app.exception_handler(Exception)
     async def generic_exception_handler(request: Request, exc: Exception):
         request_id = getattr(request.state, "request_id", "")
-        try:
-            request_count.labels(status="error").inc()
-            error_count.labels(error_type="unhandled", component="api").inc()
-        except Exception:
-            pass
+        if request.url.path != "/chat/intent":
+            try:
+                request_count.labels(status="error").inc()
+                error_count.labels(error_type="unhandled", component="api").inc()
+            except Exception:
+                pass
         log_event(
             "api",
             "unhandled_error",

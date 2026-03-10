@@ -43,7 +43,11 @@ def _get_latest_user_message(state: AgentState) -> str:
     return ""
 
 
-def _record_llm_tokens(response: Any) -> None:
+def _metrics_enabled(state: AgentState) -> bool:
+    return not bool(state.get("observability_disabled"))
+
+
+def _record_llm_tokens(state: AgentState, response: Any) -> None:
     """
     Best-effort extraction of token usage from LangChain chat responses.
 
@@ -52,6 +56,8 @@ def _record_llm_tokens(response: Any) -> None:
     against the configured LLM_PROVIDER.
     """
     try:  # pragma: no cover - defensive metrics path
+        if not _metrics_enabled(state):
+            return
         provider = os.getenv("LLM_PROVIDER", "ollama")
         metadata = getattr(response, "response_metadata", None) or {}
         usage = metadata.get("token_usage") or metadata.get("usage") or {}
@@ -133,7 +139,13 @@ def _record_node_span(state: AgentState, span_name: str, *, latency_ms: float, *
     )
 
 
-def _start_otel_span(span_name: str):
+def _otel_enabled(state: AgentState) -> bool:
+    return not bool(state.get("observability_disabled"))
+
+
+def _start_otel_span(state: AgentState, span_name: str):
+    if not _otel_enabled(state):
+        return None, None
     tracer = get_tracer()
     if tracer is None:
         return None, None
@@ -154,7 +166,7 @@ def _finish_otel_span(context_manager: Any, span: Any, **attrs: Any) -> None:
 
 async def classify_intent(state: AgentState) -> AgentState:
     start = time.perf_counter()
-    span_ctx, otel_span = _start_otel_span("intent_detection")
+    span_ctx, otel_span = _start_otel_span(state, "intent_detection")
     llm = get_llm()
     user_text = _get_latest_user_message(state)
 
@@ -167,7 +179,7 @@ async def classify_intent(state: AgentState) -> AgentState:
         HumanMessage(content=user_text),
     ]
     resp = await llm.ainvoke(messages)
-    _record_llm_tokens(resp)
+    _record_llm_tokens(state, resp)
     raw = (resp.content or "").strip().lower()
 
     intent_value: str
@@ -200,10 +212,11 @@ async def classify_intent(state: AgentState) -> AgentState:
     next_state: AgentState = dict(state)
     next_state["intent"] = intent
     next_state["intent_prompt_profile"] = profile_name
-    try:
-        intent_distribution.labels(intent=intent).inc()
-    except Exception:
-        pass
+    if _metrics_enabled(state):
+        try:
+            intent_distribution.labels(intent=intent).inc()
+        except Exception:
+            pass
     log_event(
         "agent",
         "classify_intent",
@@ -268,7 +281,7 @@ def _intent_to_category(intent: Intent | None) -> str | None:
 
 async def retrieve_context(state: AgentState) -> AgentState:
     start = time.perf_counter()
-    span_ctx, otel_span = _start_otel_span("retrieval")
+    span_ctx, otel_span = _start_otel_span(state, "retrieval")
     user_text = _get_latest_user_message(state)
     intent = state.get("intent")
     category = _intent_to_category(intent)
@@ -332,7 +345,7 @@ async def retrieve_context(state: AgentState) -> AgentState:
 
 async def plan_action(state: AgentState) -> AgentState:
     start = time.perf_counter()
-    span_ctx, otel_span = _start_otel_span("response_planning")
+    span_ctx, otel_span = _start_otel_span(state, "response_planning")
     llm = get_llm()
     user_text = _get_latest_user_message(state)
     intent = state.get("intent")
@@ -355,7 +368,7 @@ async def plan_action(state: AgentState) -> AgentState:
 
     messages = [SystemMessage(content=SYSTEM_PLANNER), HumanMessage(content=prompt)]
     resp = await llm.ainvoke(messages)
-    _record_llm_tokens(resp)
+    _record_llm_tokens(state, resp)
     raw = (resp.content or "").strip()
 
     tool_calls: List[ToolCall] = []
@@ -400,7 +413,7 @@ async def plan_action(state: AgentState) -> AgentState:
 
 async def execute_tool(state: AgentState) -> AgentState:
     start = time.perf_counter()
-    span_ctx, otel_span = _start_otel_span("tool_calls")
+    span_ctx, otel_span = _start_otel_span(state, "tool_calls")
     calls = state.get("tool_calls") or []
     results: List[ToolResult] = []
 
@@ -510,7 +523,7 @@ async def execute_tool(state: AgentState) -> AgentState:
 
 async def synthesize_response(state: AgentState) -> AgentState:
     start = time.perf_counter()
-    span_ctx, otel_span = _start_otel_span("response_synthesis")
+    span_ctx, otel_span = _start_otel_span(state, "response_synthesis")
     llm = get_llm()
     user_text = _get_latest_user_message(state)
     retrieved = state.get("retrieved_docs") or []
@@ -532,7 +545,7 @@ async def synthesize_response(state: AgentState) -> AgentState:
 
     messages = [SystemMessage(content=system), HumanMessage(content=user_prompt)]
     resp = await llm.ainvoke(messages)
-    _record_llm_tokens(resp)
+    _record_llm_tokens(state, resp)
     answer = (resp.content or "").strip()
 
     next_state: AgentState = dict(state)
@@ -561,7 +574,7 @@ async def synthesize_response(state: AgentState) -> AgentState:
 
 async def check_escalation(state: AgentState) -> AgentState:
     start = time.perf_counter()
-    span_ctx, otel_span = _start_otel_span("outcome_decision")
+    span_ctx, otel_span = _start_otel_span(state, "outcome_decision")
     llm = get_llm()
     user_text = _get_latest_user_message(state)
     tool_results = state.get("tool_results") or []
@@ -581,7 +594,7 @@ async def check_escalation(state: AgentState) -> AgentState:
         )
         messages = [SystemMessage(content=system), HumanMessage(content=human)]
         resp = await llm.ainvoke(messages)
-        _record_llm_tokens(resp)
+        _record_llm_tokens(state, resp)
         raw = (resp.content or "").strip().lower()
         should = "true" in raw
 
@@ -622,7 +635,7 @@ async def check_escalation(state: AgentState) -> AgentState:
 
 async def create_ticket(state: AgentState) -> AgentState:
     start = time.perf_counter()
-    span_ctx, otel_span = _start_otel_span("outcome")
+    span_ctx, otel_span = _start_otel_span(state, "outcome")
     if not state.get("should_escalate"):
         log_event(
             "agent",

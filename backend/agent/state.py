@@ -75,6 +75,9 @@ class AgentState(TypedDict, total=False):
     user_id: Optional[str]
     request_id: Optional[str]
     trace_id: Optional[str]
+    # When True, suppress external observability signals (LangSmith / OTel / Prometheus).
+    # Intended for intent-only evaluation flow.
+    observability_disabled: bool
     # Active knowledge-base dataset key (e.g. "wixqa", "bitext").
     dataset: Optional[str]
     # Optional prompt profile name for intent classification (e.g. "default", "bitext").

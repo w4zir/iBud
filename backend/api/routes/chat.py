@@ -351,13 +351,7 @@ async def _run_intent_only_flow(
     request_status = "ok"
     try:
         session = await _get_or_create_session(db, req.session_id, req.user_id)
-        tracer = get_tracer()
-        if tracer is not None:
-            span_ctx = tracer.start_as_current_span("intent_only_conversation")
-            root_span = span_ctx.__enter__()
-            root_span.set_attribute("session_id", str(session.id))
-            root_span.set_attribute("user_id", req.user_id)
-            root_span.set_attribute("channel", "api")
+        # Intent-only eval must not emit OpenTelemetry traces.
 
         log_event(
             "chat",
@@ -385,15 +379,22 @@ async def _run_intent_only_flow(
             "request_id": request_id,
             "messages": history,
             "dataset": (req.dataset or "wixqa").lower(),
+            "observability_disabled": True,
         }
         if req.intent_prompt_profile:
             state["intent_prompt_profile"] = req.intent_prompt_profile
 
-        trace_id, _ = get_current_trace_ids()
-        if trace_id:
-            state["trace_id"] = trace_id
+        # Avoid LangSmith tracing even if it is globally enabled via env vars.
+        try:
+            import langsmith as _langsmith  # type: ignore[import-not-found]
+        except Exception:
+            _langsmith = None
 
-        final_state = await agent_nodes.classify_intent(state)  # type: ignore[arg-type]
+        if _langsmith is not None:
+            with _langsmith.tracing_context(enabled=False):
+                final_state = await agent_nodes.classify_intent(state)  # type: ignore[arg-type]
+        else:
+            final_state = await agent_nodes.classify_intent(state)  # type: ignore[arg-type]
         intent = final_state.get("intent")
         intent_profile = final_state.get("intent_prompt_profile")
 
@@ -405,10 +406,6 @@ async def _run_intent_only_flow(
             intent=intent,
             intent_profile=intent_profile,
         )
-
-        if root_span is not None:
-            root_span.set_attribute("intent", str(intent or ""))
-            root_span.set_attribute("intent_profile", str(intent_profile or ""))
 
         return IntentClassifyResponse(
             session_id=str(session.id),
@@ -424,15 +421,8 @@ async def _run_intent_only_flow(
         raise
     finally:
         elapsed = time.perf_counter() - start
-        if root_span is not None:
-            root_span.set_attribute("latency_ms", elapsed * 1000.0)
-        if span_ctx is not None:
-            span_ctx.__exit__(None, None, None)
-        try:
-            request_count.labels(status=request_status).inc()
-            request_latency.observe(elapsed)
-        except Exception:
-            pass
+        # Intent-only eval must not emit Prometheus metrics.
+        _ = elapsed
 
 
 @router.post("/", response_model=ChatResponse)

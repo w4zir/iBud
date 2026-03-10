@@ -104,7 +104,7 @@ def test_sessions_history_endpoint(monkeypatch):
 
 @pytest.mark.integration
 def test_chat_intent_endpoint_persists_and_classifies(monkeypatch):
-    def fake_classify_intent(state):  # type: ignore[arg-type]
+    async def fake_classify_intent(state):  # type: ignore[arg-type]
         new_state = dict(state)
         new_state["intent"] = "cancel_order"
         new_state["intent_prompt_profile"] = state.get("intent_prompt_profile") or "default"
@@ -113,6 +113,25 @@ def test_chat_intent_endpoint_persists_and_classifies(monkeypatch):
     import backend.agent.nodes as nodes_module
 
     monkeypatch.setattr(nodes_module, "classify_intent", fake_classify_intent)
+
+    # Ensure LangSmith is explicitly disabled for intent-only flow even if a
+    # langsmith module exists at runtime.
+    import contextlib
+    import sys
+
+    calls = {"enabled": None, "entered": 0}
+
+    @contextlib.contextmanager
+    def fake_tracing_context(*, enabled=None, **kwargs):  # type: ignore[no-untyped-def]
+        calls["enabled"] = enabled
+        calls["entered"] += 1
+        yield
+
+    sys.modules["langsmith"] = type(
+        "FakeLangsmith",
+        (),
+        {"tracing_context": staticmethod(fake_tracing_context)},
+    )()
 
     resp = client.post(
         "/chat/intent",
@@ -129,4 +148,6 @@ def test_chat_intent_endpoint_persists_and_classifies(monkeypatch):
     assert data["session_id"]
     assert data["intent"] == "cancel_order"
     assert data["intent_prompt_profile"] == "bitext"
+    assert calls["entered"] == 1
+    assert calls["enabled"] is False
 

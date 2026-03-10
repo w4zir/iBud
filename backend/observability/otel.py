@@ -39,7 +39,8 @@ def init_tracing(app: FastAPI) -> None:
     provider.add_span_processor(BatchSpanProcessor(OTLPSpanExporter(endpoint=endpoint, insecure=True)))
     trace.set_tracer_provider(provider)
 
-    FastAPIInstrumentor.instrument_app(app)
+    # Exclude intent-only evaluation endpoint from tracing.
+    FastAPIInstrumentor.instrument_app(app, excluded_urls=r"^/chat/intent$")
     _tracer = trace.get_tracer("ibud.backend")
     _initialized = True
 
