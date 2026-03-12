@@ -173,7 +173,11 @@ async def _persist_run_and_predictions(
     """Insert IntentEvalRun + IntentEvalPrediction rows and an evaluation_scores metadata row."""
     created_at = datetime.now(timezone.utc)
 
-    async with async_session_factory() as db:
+    factory = async_session_factory()
+    # Some tests monkeypatch async_session_factory as an async function.
+    if hasattr(factory, "__await__"):
+        factory = await factory  # type: ignore[assignment]
+    async with factory as db:  # type: ignore[assignment]
         run = IntentEvalRun(
             experiment_name=run_meta.get("experiment_name"),
             dataset_key=run_meta.get("dataset_key"),
@@ -242,7 +246,10 @@ async def _regenerate_from_db(
     """Rebuild a summary from existing DB rows."""
     from sqlalchemy import and_, select
 
-    async with async_session_factory() as db:
+    factory = async_session_factory()
+    if hasattr(factory, "__await__"):
+        factory = await factory  # type: ignore[assignment]
+    async with factory as db:  # type: ignore[assignment]
         if run_id:
             run_stmt = select(IntentEvalRun).where(IntentEvalRun.id == run_id)
         elif experiment_name:

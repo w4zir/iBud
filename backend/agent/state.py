@@ -90,6 +90,20 @@ class AgentState(TypedDict, total=False):
     final_response: Optional[str]
     should_escalate: bool
     ticket_id: Optional[str]
+    # New orchestration state (JSON-serializable; persists across retries).
+    workflow_state: Dict[str, Any]
+    # Planner output (strict schema) and related loop feedback.
+    plan: Dict[str, Any]
+    plan_feedback: Optional[str]
+    # Workflow execution results keyed by task_id.
+    execution_results: Dict[str, Any]
+    # Sentiment scores emitted by classifier and validator in [0,1].
+    classifier_sentiment_score: Optional[float]
+    validator_sentiment_score: Optional[float]
+    # User asked for a human explicitly.
+    user_requested_human: Optional[bool]
+    # Escalation reason/source for diagnostics.
+    escalation_reason: Optional[str]
 
 
 __all__ = [

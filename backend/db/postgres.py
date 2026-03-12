@@ -1,7 +1,8 @@
 import os
 from typing import AsyncGenerator
 
-from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession, create_async_engine
+from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import NullPool
 
 
@@ -41,11 +42,22 @@ async_engine: AsyncEngine = create_async_engine(
     pool_pre_ping=False,
 )
 
-async_session_factory = async_sessionmaker(
-    async_engine,
-    expire_on_commit=False,
-    class_=AsyncSession,
-)
+try:
+    # SQLAlchemy 2.x
+    from sqlalchemy.ext.asyncio import async_sessionmaker  # type: ignore
+
+    async_session_factory = async_sessionmaker(  # type: ignore[no-redef]
+        async_engine,
+        expire_on_commit=False,
+        class_=AsyncSession,
+    )
+except Exception:
+    # SQLAlchemy 1.4 fallback
+    async_session_factory = sessionmaker(  # type: ignore[assignment]
+        bind=async_engine,
+        expire_on_commit=False,
+        class_=AsyncSession,
+    )
 
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:

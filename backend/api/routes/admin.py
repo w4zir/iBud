@@ -10,7 +10,6 @@ from ...db.models import Ticket
 from ...db.postgres import get_session
 from ...evaluation.pipeline import AsyncEvaluator
 from ...rag.ingest_wixqa import ingest_wixqa
-from ...rag.ingest_bitext import ingest_bitext
 from ...remediation.drift import detect_model_data_drift
 from ...remediation.engine import RemediationEngine
 from ...remediation.events import recent_interventions
@@ -28,6 +27,9 @@ async def admin_ingest_wixqa() -> dict:
 
 @router.post("/ingest/bitext")
 async def admin_ingest_bitext() -> dict:
+    # Lazy import so the API can start without optional ingestion deps.
+    from ...rag.ingest_bitext import ingest_bitext
+
     await ingest_bitext()
     return {"status": "ok"}
 

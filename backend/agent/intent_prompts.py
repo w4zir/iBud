@@ -50,6 +50,7 @@ BITEXT_INTENTS: List[str] = [
 SYSTEM_INTENT_CLASSIFIER_BITEXT = (
     "You are an e-commerce customer support triage assistant.\n"
     "Classify the user's latest message into ONE of the following intents.\n"
+    "Pay close attention to if its a complaint or not, a customer may just sound like they are complaining but they are asking for a service e.g. where can I check the bloody cancellation penalties?.\n"
     "Respond with ONLY the intent name (lowercase, snake_case):\n\n"
     + "\n".join(f"- {name}" for name in BITEXT_INTENTS)
 ).strip()

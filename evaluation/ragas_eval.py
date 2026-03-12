@@ -27,11 +27,24 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 import httpx
-from datasets import Dataset
+try:
+    # Optional dependency; some unit tests monkeypatch evaluation pipeline pieces.
+    from datasets import Dataset  # type: ignore
+except Exception:  # pragma: no cover
+    Dataset = None  # type: ignore[assignment]
 from dotenv import load_dotenv
 from openai import AsyncOpenAI
-from ragas import evaluate
-from ragas.llms import llm_factory
+try:
+    from ragas import evaluate  # type: ignore
+    from ragas.llms import llm_factory  # type: ignore
+except Exception:  # pragma: no cover
+    evaluate = None  # type: ignore[assignment]
+    llm_factory = None  # type: ignore[assignment]
+
+# Provide a small fallback so unit tests can run without ragas installed.
+if llm_factory is None:  # pragma: no cover
+    def llm_factory(model: str, client: AsyncOpenAI | None = None):  # type: ignore[no-redef]
+        return {"model": model, "client": client}
 
 
 ROOT = Path(__file__).resolve().parent
@@ -468,7 +481,12 @@ def run_ragas_eval(
     else:  # backward compatibility for tests monkeypatching legacy return shape
         payload = backend_result
         failed_rows = []
-    dataset = Dataset.from_dict(payload)
+
+    if Dataset is None:
+        # Minimal fallback for test environments without HuggingFace datasets.
+        dataset = payload
+    else:
+        dataset = Dataset.from_dict(payload)
  
     # Ensure .env is loaded so we can reuse the same provider
     # configuration as the main app (e.g. Cerebras keys).

@@ -12,8 +12,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ...agent import graph as agent_graph
-from ...agent import nodes as agent_nodes
+from ...agent.orchestrator import classify_intent_only, run_orchestrated_agent
 from ...agent.state import AgentState
 from ...config import log_event
 from ...db.models import Message, Session
@@ -251,7 +250,7 @@ async def _run_agent_flow(
         trace_id, _ = get_current_trace_ids()
         if trace_id:
             state["trace_id"] = trace_id
-        final_state = await agent_graph.run_agent(state, thread_id=str(session.id))
+        final_state = await run_orchestrated_agent(state)
         response_text = final_state.get("final_response") or ""
 
         log_event(
@@ -392,9 +391,9 @@ async def _run_intent_only_flow(
 
         if _langsmith is not None:
             with _langsmith.tracing_context(enabled=False):
-                final_state = await agent_nodes.classify_intent(state)  # type: ignore[arg-type]
+                final_state = await classify_intent_only(state)  # type: ignore[arg-type]
         else:
-            final_state = await agent_nodes.classify_intent(state)  # type: ignore[arg-type]
+            final_state = await classify_intent_only(state)  # type: ignore[arg-type]
         intent = final_state.get("intent")
         intent_profile = final_state.get("intent_prompt_profile")
 

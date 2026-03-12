@@ -11,7 +11,6 @@ import os
 import uuid
 from typing import Any, Dict, List, Tuple
 
-from datasets import load_dataset
 from sqlalchemy import text
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -112,6 +111,13 @@ async def ingest_wixqa() -> None:
     - Load Wix/WixQA wix_kb_corpus
     - For each article: build text + metadata, chunk, embed children, insert parent + children
     """
+    try:
+        from datasets import load_dataset  # type: ignore
+    except Exception as exc:  # pragma: no cover
+        raise ImportError(
+            "WixQA ingestion requires the 'datasets' package. Install backend requirements."
+        ) from exc
+
     dataset_name = os.getenv("HF_DATASET_PRIMARY", HF_DATASET_PRIMARY)
     print(f"Loading dataset '{dataset_name}' config '{WIX_KB_SPLIT}' from HuggingFace...")
     ds = load_dataset(dataset_name, WIX_KB_SPLIT, split="train")

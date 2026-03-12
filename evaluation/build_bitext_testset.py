@@ -23,7 +23,11 @@ from collections import defaultdict
 from pathlib import Path
 from typing import Any, Dict, List
 
-from datasets import load_dataset
+try:
+    # Optional dependency; tests monkeypatch this symbol.
+    from datasets import load_dataset  # type: ignore
+except Exception:  # pragma: no cover
+    load_dataset = None  # type: ignore[assignment]
 
 
 DATASET_NAME = "bitext/Bitext-customer-support-llm-chatbot-training-dataset"
@@ -50,6 +54,8 @@ def _extract_row(raw: Dict[str, Any], *, split: str, idx: int) -> Dict[str, Any]
 
 
 def build_bitext_full() -> List[Dict[str, Any]]:
+    if load_dataset is None:  # pragma: no cover
+        raise ImportError("build_bitext_testset requires the 'datasets' package")
     ds = load_dataset(DATASET_NAME, split="train")
     rows: List[Dict[str, Any]] = []
     for idx, raw in enumerate(ds):
@@ -62,6 +68,8 @@ def build_bitext_sampled(max_per_intent: int = 50) -> List[Dict[str, Any]]:
     Build a sampled evaluation set by taking up to `max_per_intent` examples
     from each (category, intent) bucket, to keep runs fast but representative.
     """
+    if load_dataset is None:  # pragma: no cover
+        raise ImportError("build_bitext_testset requires the 'datasets' package")
     ds = load_dataset(DATASET_NAME, split="train")
     buckets: Dict[tuple[str, str], List[Dict[str, Any]]] = defaultdict(list)
 

@@ -11,7 +11,7 @@ client = TestClient(app)
 
 @pytest.mark.integration
 def test_chat_creates_session_and_persists_messages(monkeypatch):
-    def fake_run_agent(state, thread_id=None):  # type: ignore[arg-type]
+    async def fake_run(state):  # type: ignore[arg-type]
         new_state = dict(state)
         new_state["final_response"] = "Stubbed response"
         new_state["retrieved_docs"] = []
@@ -20,9 +20,9 @@ def test_chat_creates_session_and_persists_messages(monkeypatch):
         new_state["ticket_id"] = None
         return new_state
 
-    import backend.agent.graph as graph_module
+    import backend.agent.orchestrator as orch_module
 
-    monkeypatch.setattr(graph_module, "run_agent", fake_run_agent)
+    monkeypatch.setattr(orch_module, "run_orchestrated_agent", fake_run)
 
     resp = client.post(
         "/chat/",
@@ -38,7 +38,7 @@ def test_chat_creates_session_and_persists_messages(monkeypatch):
 def test_chat_cache_same_query(monkeypatch):
     calls = {"count": 0}
 
-    def fake_run_agent(state, thread_id=None):  # type: ignore[arg-type]
+    async def fake_run(state):  # type: ignore[arg-type]
         calls["count"] += 1
         new_state = dict(state)
         new_state["final_response"] = f"Response {calls['count']}"
@@ -48,9 +48,9 @@ def test_chat_cache_same_query(monkeypatch):
         new_state["ticket_id"] = None
         return new_state
 
-    import backend.agent.graph as graph_module
+    import backend.agent.orchestrator as orch_module
 
-    monkeypatch.setattr(graph_module, "run_agent", fake_run_agent)
+    monkeypatch.setattr(orch_module, "run_orchestrated_agent", fake_run)
 
     first = client.post(
         "/chat/",
@@ -73,7 +73,7 @@ def test_chat_cache_same_query(monkeypatch):
 
 @pytest.mark.integration
 def test_sessions_history_endpoint(monkeypatch):
-    def fake_run_agent(state, thread_id=None):  # type: ignore[arg-type]
+    async def fake_run(state):  # type: ignore[arg-type]
         new_state = dict(state)
         new_state["final_response"] = "Session test response"
         new_state["retrieved_docs"] = []
@@ -82,9 +82,9 @@ def test_sessions_history_endpoint(monkeypatch):
         new_state["ticket_id"] = None
         return new_state
 
-    import backend.agent.graph as graph_module
+    import backend.agent.orchestrator as orch_module
 
-    monkeypatch.setattr(graph_module, "run_agent", fake_run_agent)
+    monkeypatch.setattr(orch_module, "run_orchestrated_agent", fake_run)
 
     resp = client.post(
         "/chat/",
@@ -104,15 +104,15 @@ def test_sessions_history_endpoint(monkeypatch):
 
 @pytest.mark.integration
 def test_chat_intent_endpoint_persists_and_classifies(monkeypatch):
-    async def fake_classify_intent(state):  # type: ignore[arg-type]
+    async def fake_classify_intent_only(state):  # type: ignore[arg-type]
         new_state = dict(state)
         new_state["intent"] = "cancel_order"
         new_state["intent_prompt_profile"] = state.get("intent_prompt_profile") or "default"
         return new_state
 
-    import backend.agent.nodes as nodes_module
+    import backend.agent.orchestrator as orch_module
 
-    monkeypatch.setattr(nodes_module, "classify_intent", fake_classify_intent)
+    monkeypatch.setattr(orch_module, "classify_intent_only", fake_classify_intent_only)
 
     # Ensure LangSmith is explicitly disabled for intent-only flow even if a
     # langsmith module exists at runtime.

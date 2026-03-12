@@ -78,13 +78,18 @@ def get_embedding_dim() -> int:
     return int(os.getenv("EMBEDDING_DIM", "768"))
 
 
-def get_llm():
+def get_llm(*, role: str | None = None):
     provider = os.getenv("LLM_PROVIDER", "ollama")
     match provider:
         case "openai":
             from langchain_openai import ChatOpenAI
+            model = os.getenv("OPENAI_MODEL", "gpt-4o-mini")
+            if role == "planner":
+                model = os.getenv("OPENAI_PLANNER_MODEL", model)
+            elif role == "small":
+                model = os.getenv("OPENAI_SMALL_MODEL", model)
             return ChatOpenAI(
-                model=os.getenv("OPENAI_MODEL", "gpt-4o-mini"),
+                model=model,
                 api_key=os.getenv("OPENAI_API_KEY"),
             )
         case "cerebras":
@@ -95,14 +100,22 @@ def get_llm():
                     "LLM_PROVIDER=cerebras requires langchain-cerebras. "
                     "Install with: pip install langchain-cerebras"
                 )
-            return ChatCerebras(
-                model=os.getenv("CEREBRAS_MODEL", "llama3.1-8b"),
-                api_key=os.getenv("CEREBRAS_API_KEY"),
-            )
+            model = os.getenv("CEREBRAS_MODEL", "llama3.1-8b")
+            if role == "planner":
+                model = os.getenv("CEREBRAS_PLANNER_MODEL", model)
+            elif role == "small":
+                model = os.getenv("CEREBRAS_SMALL_MODEL", model)
+            return ChatCerebras(model=model, api_key=os.getenv("CEREBRAS_API_KEY"))
         case "ollama" | _:
             from langchain_ollama import ChatOllama
+            # Default: smaller/faster model for most stages; planner can be overridden.
+            model = os.getenv("OLLAMA_MODEL", "llama3.2")
+            if role == "planner":
+                model = os.getenv("OLLAMA_PLANNER_MODEL", "glm-5")
+            elif role == "small":
+                model = os.getenv("OLLAMA_SMALL_MODEL", model)
             return ChatOllama(
-                model=os.getenv("OLLAMA_MODEL", "llama3.2"),
+                model=model,
                 base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
             )
 

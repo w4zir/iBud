@@ -1,10 +1,10 @@
 ## Agentic RAG — E‑Commerce Customer Support
 
-This repository implements an agentic RAG system for e‑commerce customer support, following the phased plan in `plan.md`. It combines a FastAPI backend, LangGraph agent, pgvector/Redis data layer, and a Streamlit frontend, with observability and evaluation via Prometheus, Grafana, LangSmith, and RAGAS.
+This repository implements an agentic RAG system for e‑commerce customer support, following the phased plan in `plan.md`. It combines a FastAPI backend, a stateful workflow-style agent runtime, a pgvector/Redis data layer, and a Streamlit frontend, with observability and evaluation via Prometheus, Grafana, LangSmith, and RAGAS.
 
 ### Components
 
-- **Backend (`backend/`)**: FastAPI API server plus LangGraph agent, RAG pipeline, tools, and observability.
+- **Backend (`backend/`)**: FastAPI API server plus workflow-style agent runtime (intent→plan→evaluate→execute→validate→respond), RAG pipeline, tools, and observability.
 - **Frontend (`frontend/`)**: Streamlit chat UI for customer support workflows.
 - **Infra (`infra/`)**: Postgres schema + migrations, Prometheus config, and Grafana dashboards.
 - **Evaluation (`evaluation/`)**: WixQA and Bitext testset builders, the RAGAS evaluation runner, and intent classification evaluation for Bitext.

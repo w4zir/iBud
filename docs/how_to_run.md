@@ -108,8 +108,26 @@ Inside the Ollama container:
 
 ```powershell
 docker compose exec ollama ollama pull llama3.2
+docker compose exec ollama ollama pull glm-5
 docker compose exec ollama ollama pull nomic-embed-text
 ```
+
+## 3.1 Agent model routing (runtime)
+
+The runtime uses role-based model selection:
+
+- `OLLAMA_PLANNER_MODEL=glm-5` (larger model for planning)
+- `OLLAMA_SMALL_MODEL=llama3.2` (smaller model for classifier/evaluator/validator/response)
+
+You can override these in `.env` as needed.
+
+## 3.2 External human handoff integration (optional)
+
+To enable external human escalation calls (in addition to creating a local DB ticket), set:
+
+- `HUMAN_HANDOFF_URL=<https endpoint>`
+- (optional) `HUMAN_HANDOFF_API_KEY=<token>`
+- (optional) `HUMAN_HANDOFF_TIMEOUT_SECONDS=5`
 
 ## 4. Ingest knowledge-base datasets into pgvector
 

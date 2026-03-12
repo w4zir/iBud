@@ -20,7 +20,11 @@ import json
 from pathlib import Path
 from typing import Any, Dict, List
 
-from datasets import load_dataset
+try:
+    # Optional dependency; tests monkeypatch this symbol.
+    from datasets import load_dataset  # type: ignore
+except Exception:  # pragma: no cover
+    load_dataset = None  # type: ignore[assignment]
 
 
 DATASET_NAME = "Wix/WixQA"
@@ -56,6 +60,9 @@ def _extract_row(raw: Dict[str, Any], *, split: str, idx: int) -> Dict[str, Any]
 
 def build_wixqa_testset() -> List[Dict[str, Any]]:
     rows: List[Dict[str, Any]] = []
+
+    if load_dataset is None:  # pragma: no cover
+        raise ImportError("build_wixqa_testset requires the 'datasets' package")
 
     expert = load_dataset(DATASET_NAME, EXPERT_SPLIT, split="train")
     for idx, raw in enumerate(expert):

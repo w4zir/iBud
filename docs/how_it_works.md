@@ -5,9 +5,9 @@ This document explains **how the iBud agentic RAG system works** end to end:
 - High-level **system architecture**.
 - **Data flow** for a chat request.
 - The main **components** and how they interact.
-- Core **algorithms with pseudocode** for chunking, retrieval, and the agent graph.
+- Core **algorithms with pseudocode** for chunking, retrieval, and the agent runtime.
 
-The system implements an e‑commerce customer support assistant backed by a LangGraph agent, a pgvector RAG store, Redis caching, and a Streamlit UI.
+The system implements an e‑commerce customer support assistant backed by a **stateful workflow-style agent runtime**, a pgvector RAG store, Redis caching, and a Streamlit UI.
 
 ## System architecture
 
@@ -27,13 +27,12 @@ At a high level the system consists of:
   - Wires up CORS, request-id middleware (`X-Request-ID` propagation), and global exception handlers.
   - Adds request correlation metadata to logs and response headers.
 
-- **Agent (`backend/agent/`)**
-  - LangGraph state machine (`graph.py`) implementing the multi-step agent:
-    - `classify_intent` → `retrieve_context` → `plan_action` → `execute_tool` → `synthesize_response` → `check_escalation` → `create_ticket`.
-  - Node implementations in `nodes.py` use LLMs, retrievers, and tools.
-  - Agent state schema in `state.py` tracks user messages, intent, retrieved docs, tool calls/results, escalation flags, and tickets.
-  - System prompts in `prompts.py` for intent classification, planning, answering, and escalation decisions.
-  - Intent prompt profiles in `intent_prompts.py` (for example `default` vs `bitext`) which can be selected via state or `INTENT_PROMPT_PROFILE`.
+- **Agent runtime (`backend/agent/`)**
+  - Orchestrator (`orchestrator.py`) implementing the runtime flow:
+    - `intent_classifier` → `planner` → `evaluator` → `workflow_engine` → `executor` → `validator` → `response_generator`.
+  - Agent state schema in `state.py` tracks conversation, workflow JSON state, plan, execution results, escalation, and response.
+  - Planner cycle counter is stored in `AgentState["workflow_state"]["planner_cycle_count"]`.
+  - Escalation performs dual-write: external human handoff (optional) + local ticket persistence.
 
 - **RAG pipeline (`backend/rag/`)**
   - **Chunking** (`chunker.py`): section-aware splitting of WixQA help-center articles into parent documents and child chunks.
@@ -106,16 +105,15 @@ When a user sends a message through the Streamlit UI:
    - Builds an initial `AgentState` containing:
      - Messages, `session_id`, `user_id`, and any contextual metadata.
      - Correlation fields such as `request_id`.
-3. **LangGraph agent (`run_agent`)**
-   - The compiled graph from `build_agent_graph()` is invoked asynchronously with the current state and LangSmith run config.
-   - The state flows through the following nodes:
-     - `classify_intent`
-     - `retrieve_context`
-     - `plan_action`
-     - (optional) `execute_tool`
-     - `synthesize_response`
-     - `check_escalation`
-     - (optional) `create_ticket`
+3. **Agent runtime (`run_orchestrated_agent`)**
+  - The orchestrator is invoked asynchronously with the current state.
+  - The state flows through stages:
+    - `intent_classifier` (small model; emits intent + sentiment_score + user_requested_human)
+    - `planner` (large model; emits strict JSON plan schema and dependency graph)
+    - `evaluator` (small model; validates plan, provides feedback to replan)
+    - `workflow_engine` + `executor` (deterministic tools/APIs only; retries + failure recovery)
+    - `validator` (small model; receives only Plan + Result)
+    - `response_generator` (small model; final human-readable response)
 4. **Response construction**
    - The final state includes:
      - `final_response` — answer text.
@@ -255,38 +253,24 @@ Parent expansion and reranking are implemented as separate helpers:
 - **Parent expansion**: when a high‑scoring child chunk has a parent, the parent article content is fetched and added as an additional `RetrievedDoc` directly following the child.
 - **Reranking**: if the `sentence_transformers` cross‑encoder can be loaded, it scores `(query, doc.content)` pairs and sorts documents by descending cross‑encoder score.
 
-### Agent graph: multi-step decision process
+### Agent runtime: orchestrated workflow
 
-Based on `backend/agent/graph.py` and `backend/agent/nodes.py`.
-
-#### Graph structure
+Based on `backend/agent/orchestrator.py`.
 
 ```pseudo
-graph:
-  nodes:
-    classify_intent
-    retrieve_context
-    plan_action
-    execute_tool
-    synthesize_response
-    check_escalation
-    create_ticket
+intent_classifier(user_message) -> intent, sentiment_score, user_requested_human
+if sentiment_score < 0.3 or user_requested_human or angry: escalate_to_human()
 
-  entry: classify_intent
+planner(cycle_count, user_request, intent, feedback?) -> plan_json
+evaluator(user_request, plan_json) -> plan_valid, feedback
+if not plan_valid: loop planner (cycle_count++)
 
-  edges:
-    classify_intent -> retrieve_context
-    retrieve_context -> plan_action
+workflow_engine(plan_json) -> result_json (tasks executed with retries)
+validator(plan_json, result_json) -> achieved, feedback, sentiment_score
+if sentiment_score < 0.3: escalate_to_human()
+if not achieved: loop planner (cycle_count++)
 
-    plan_action --(tool_calls empty?)--> synthesize_response
-    plan_action --(tool_calls present)--> execute_tool
-
-    execute_tool -> synthesize_response
-    synthesize_response -> check_escalation
-
-    check_escalation --(resolved)--> END
-    check_escalation --(escalate)--> create_ticket
-    create_ticket -> END
+response_generator(plan_json, result_json) -> final_response
 ```
 
 #### Node behaviours (pseudocode)
@@ -452,7 +436,7 @@ Putting it all together:
 
 - **Frontend** collects user input and displays answers; it is stateless aside from session identifiers.
 - **FastAPI backend** handles HTTP, validation, error handling, and persistence to Postgres (sessions, messages, tickets).
-- **Agent (LangGraph)** orchestrates LLM calls, retrieval, tools, and escalation decisions in a deterministic, observable graph.
+- **Agent runtime (orchestrator)** orchestrates model calls, tools, validation loops, and escalation decisions as a stateful workflow.
 - **RAG pipeline** ensures answers are grounded in the WixQA corpus using chunking, embeddings, pgvector similarity, caching, and reranking.
 - **Tools** connect the agent to **business data** (orders, returns) and **support workflows** (tickets).
 - **Observability and evaluation** provide continuous feedback loops:
@@ -464,7 +448,7 @@ Putting it all together:
 
 The runtime now writes structured events for historical analysis:
 
-- `agent_spans` records node-level spans (`classify_intent`, `retrieve_context`, `execute_tool`, etc.) with JSON attributes and latency.
+- `agent_spans` records stage-level spans (`intent_classifier`, `planner`, `evaluator`, `workflow_engine`, `validator`, `response_generator`, `human_escalation`) with JSON attributes and latency.
 - `outcomes` records final task completion/escalation outcomes per conversation.
 - `evaluation_scores` stores asynchronous quality scores (`groundedness`, `hallucination`, `helpfulness`).
 - `sessions` includes analytics fields (`intent`, `escalated`, `resolved_at`, `csat_score`, `nps_score`).

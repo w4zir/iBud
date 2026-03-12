@@ -13,7 +13,6 @@ import asyncio
 import os
 from typing import Any, Dict, List
 
-from datasets import load_dataset
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -72,6 +71,13 @@ async def ingest_bitext() -> None:
     - For each row: build text + metadata, embed, and insert into `documents`
       with source="bitext" and doc_tier=1.
     """
+    try:
+        from datasets import load_dataset  # type: ignore
+    except Exception as exc:  # pragma: no cover
+        raise ImportError(
+            "Bitext ingestion requires the 'datasets' package. Install backend requirements."
+        ) from exc
+
     dataset_name = os.getenv("HF_DATASET_BITEXT", HF_DATASET_BITEXT)
     print(f"Loading Bitext dataset '{dataset_name}' from HuggingFace...")
     ds = load_dataset(dataset_name, split="train")

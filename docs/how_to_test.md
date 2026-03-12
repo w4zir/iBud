@@ -73,7 +73,7 @@ Run them with:
 .\venv\Scripts\python -m pytest tests/test_use_cases.py
 ```
 
-These tests stub the underlying agent graph (`run_agent`) to avoid external LLM calls while still exercising the API surface and database interactions.
+These tests stub the underlying agent runtime (`run_orchestrated_agent`) to avoid external LLM calls while still exercising the API surface and database interactions.
 
 ## 5. Manual end-to-end scenarios
 

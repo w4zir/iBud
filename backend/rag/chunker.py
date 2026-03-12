@@ -11,9 +11,6 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Tuple
 
-from langchain_text_splitters import HTMLHeaderTextSplitter, RecursiveCharacterTextSplitter
-
-
 # Approximate 400 tokens / 50 tokens as characters (plan P1-3)
 CHUNK_SIZE = 1600
 CHUNK_OVERLAP = 200
@@ -37,12 +34,62 @@ def _split_by_headers(text: str) -> List[Tuple[str, Dict[str, Any]]]:
     if "<" not in text or ">" not in text:
         return [(text, {})]
 
-    try:
-        splitter = HTMLHeaderTextSplitter(headers_to_split_on=[("h1", "h1"), ("h2", "h2"), ("h3", "h3")])
-        docs = splitter.split_text(text)
-        return [(d.page_content, dict(d.metadata)) for d in docs]
-    except Exception:
+    # Lightweight header-aware split without external deps.
+    # We keep this intentionally simple: split around h1/h2/h3 tags when present.
+    import re
+
+    parts = re.split(r"(?i)(<h[1-3][^>]*>.*?</h[1-3]>)", text)
+    if len(parts) <= 1:
         return [(text, {})]
+
+    current_meta: Dict[str, Any] = {}
+    out: List[Tuple[str, Dict[str, Any]]] = []
+    buffer: List[str] = []
+    header_re = re.compile(r"(?i)<(h[1-3])[^>]*>(.*?)</\1>")
+
+    def flush():
+        if buffer:
+            chunk = "".join(buffer).strip()
+            if chunk:
+                out.append((chunk, dict(current_meta)))
+            buffer.clear()
+
+    for p in parts:
+        if not p:
+            continue
+        m = header_re.match(p.strip())
+        if m:
+            flush()
+            tag = m.group(1).lower()
+            header_text = re.sub(r"<[^>]+>", "", m.group(2)).strip()
+            current_meta[tag] = header_text
+        else:
+            buffer.append(p)
+
+    flush()
+    return out or [(text, {})]
+
+
+def _split_text_recursive(text: str, *, chunk_size: int, chunk_overlap: int) -> List[str]:
+    if not text:
+        return []
+    t = text.strip()
+    if len(t) <= chunk_size:
+        return [t]
+    if chunk_overlap >= chunk_size:
+        chunk_overlap = max(0, chunk_size // 4)
+
+    chunks: List[str] = []
+    start = 0
+    while start < len(t):
+        end = min(len(t), start + chunk_size)
+        chunk = t[start:end].strip()
+        if chunk:
+            chunks.append(chunk)
+        if end >= len(t):
+            break
+        start = max(0, end - chunk_overlap)
+    return chunks
 
 
 def chunk_article(
@@ -64,19 +111,13 @@ def chunk_article(
     if not full_text or not full_text.strip():
         return []
 
-    recursive = RecursiveCharacterTextSplitter(
-        chunk_size=chunk_size,
-        chunk_overlap=chunk_overlap,
-        length_function=len,
-    )
-
     sections = _split_by_headers(full_text)
     result: List[Tuple[str, Dict[str, Any]]] = []
 
     for section_text, section_meta in sections:
         meta = dict(metadata)
         meta.update(section_meta)
-        for chunk in recursive.split_text(section_text):
+        for chunk in _split_text_recursive(section_text, chunk_size=chunk_size, chunk_overlap=chunk_overlap):
             if chunk.strip():
                 result.append((chunk.strip(), meta))
 

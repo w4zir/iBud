@@ -10,7 +10,10 @@ they depend on:
 from typing import List
 
 import pytest
-from datasets import load_dataset
+try:
+    from datasets import load_dataset  # type: ignore
+except Exception:
+    load_dataset = None  # type: ignore[assignment]
 
 from backend.rag.retriever import Retriever
 
@@ -21,6 +24,8 @@ SAMPLE_SIZE = 20
 
 
 def _sample_queries() -> List[str]:
+    if load_dataset is None:
+        pytest.skip("requires datasets dependency")
     ds = load_dataset(DATASET_NAME, SPLIT_NAME, split="train")
     questions: List[str] = []
     for row in ds:
