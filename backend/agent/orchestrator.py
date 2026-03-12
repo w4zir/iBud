@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import time
 from dataclasses import dataclass
@@ -17,6 +18,32 @@ from ..tools.return_initiate import return_initiate_tool
 from ..tools.ticket_create import ticket_create_tool
 from ..tools.human_handoff import human_handoff_tool
 from .state import AgentState, ToolResult
+
+
+def _get_int_env(name: str, default: int) -> int:
+    raw = os.getenv(name)
+    if not raw:
+        return default
+    try:
+        value = int(raw)
+    except ValueError:
+        return default
+    return value if value > 0 else default
+
+
+def _get_float_env(name: str, default: float) -> float:
+    raw = os.getenv(name)
+    if not raw:
+        return default
+    try:
+        value = float(raw)
+    except ValueError:
+        return default
+    return value if value > 0.0 else default
+
+
+PLANNER_MAX_CYCLES = _get_int_env("AGENT_PLANNER_MAX_CYCLES", 5)
+SENTIMENT_THRESHOLD = _get_float_env("AGENT_SENTIMENT_THRESHOLD", 0.3)
 
 
 _USER_ASK_HUMAN_RE = re.compile(
@@ -226,11 +253,11 @@ def _decide_escalation(
         return EscalationDecision(True, "user_requested_human")
     if _is_angry_text(user_text):
         return EscalationDecision(True, "user_angry")
-    if classifier_sentiment < 0.3:
+    if classifier_sentiment < SENTIMENT_THRESHOLD:
         return EscalationDecision(True, "classifier_low_sentiment")
-    if validator_sentiment is not None and validator_sentiment < 0.3:
+    if validator_sentiment is not None and validator_sentiment < SENTIMENT_THRESHOLD:
         return EscalationDecision(True, "validator_low_sentiment")
-    if planner_cycle_count > 3:
+    if planner_cycle_count > PLANNER_MAX_CYCLES:
         return EscalationDecision(True, "planner_cycle_exceeded")
     return EscalationDecision(False, "no_escalation")
 
@@ -409,7 +436,7 @@ async def run_orchestrated_agent(state: AgentState) -> AgentState:
     while True:
         # cycle guard + persisted counter
         cycle = _inc_planner_cycle(state)
-        if cycle > 3:
+        if cycle > PLANNER_MAX_CYCLES:
             return await _handle_escalation(state, reason="planner_cycle_exceeded")
 
         # 2) Planner (large model)

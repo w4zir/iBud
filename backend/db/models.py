@@ -20,6 +20,7 @@ class Document(Base):
     content = Column(Text, nullable=False)
     parent_id = Column(UUID(as_uuid=False), ForeignKey("documents.id", ondelete="SET NULL"), nullable=True)
     embedding = Column(Vector(768), nullable=True)
+    company_id = Column(String(100))
     source = Column(String(50))
     doc_tier = Column(Integer, default=1)
     category = Column(String(100))
@@ -32,6 +33,7 @@ class Session(Base):
     __tablename__ = "sessions"
     id = Column(UUID(as_uuid=False), primary_key=True, server_default=text("gen_random_uuid()"))
     user_id = Column(String(100))
+    company_id = Column(String(100))
     intent = Column(String(50))
     escalated = Column(Boolean, default=False, server_default=text("false"))
     resolved_at = Column(DateTime(timezone=True))
@@ -63,6 +65,7 @@ class Order(Base):
     id = Column(UUID(as_uuid=False), primary_key=True, server_default=text("gen_random_uuid()"))
     order_number = Column(String(50), unique=True, nullable=False)
     user_id = Column(String(100))
+    company_id = Column(String(100))
     status = Column(String(50))
     items = Column(JSONB)
     total_amount = Column(Numeric(10, 2))

@@ -26,6 +26,10 @@ def _build_mock_order(i: int) -> Dict[str, Any]:
     user_id = f"user-{(i % 10) + 1}"
     status = STATUSES[i % len(STATUSES)]
 
+    # Alternate between default demo company and Foodpanda to support
+    # multi-company scenarios and Foodpanda-specific testing.
+    company_id = "foodpanda" if i % 2 == 0 else "default"
+
     items = [
         {
             "sku": f"SKU-{i}-{j}",
@@ -44,6 +48,7 @@ def _build_mock_order(i: int) -> Dict[str, Any]:
     return {
         "order_number": order_number,
         "user_id": user_id,
+        "company_id": company_id,
         "status": status,
         "items": items,
         "total_amount": Decimal(str(round(total_amount, 2))),

@@ -8,6 +8,7 @@ CREATE TABLE documents (
     content     TEXT NOT NULL,
     parent_id   UUID REFERENCES documents(id),
     embedding   VECTOR(768),
+    company_id  VARCHAR(100),
     source      VARCHAR(50),
     doc_tier    INTEGER DEFAULT 1,
     category    VARCHAR(100),
@@ -18,10 +19,12 @@ CREATE TABLE documents (
 CREATE INDEX ON documents USING ivfflat (embedding vector_cosine_ops) WITH (lists = 100);
 CREATE INDEX ON documents (doc_tier);
 CREATE INDEX ON documents (source);
+CREATE INDEX ON documents (company_id);
 
 CREATE TABLE sessions (
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id     VARCHAR(100),
+    company_id  VARCHAR(100),
     created_at  TIMESTAMPTZ DEFAULT NOW(),
     updated_at  TIMESTAMPTZ DEFAULT NOW()
 );
@@ -39,6 +42,7 @@ CREATE TABLE orders (
     id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     order_number    VARCHAR(50) UNIQUE NOT NULL,
     user_id         VARCHAR(100),
+    company_id      VARCHAR(100),
     status          VARCHAR(50),
     items           JSONB,
     total_amount    DECIMAL(10,2),

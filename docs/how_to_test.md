@@ -7,6 +7,7 @@ This document describes how to test the system across different layers:
 - API-level use-case tests (end-to-end flows)
 - Observability checks (metrics, traces)
 - RAG quality evaluation (RAGAS)
+ - Company-scoped/Foodpanda policy tests
 
 All examples assume a PowerShell shell on Windows from the project root.
 
@@ -74,6 +75,19 @@ Run them with:
 ```
 
 These tests stub the underlying agent runtime (`run_orchestrated_agent`) to avoid external LLM calls while still exercising the API surface and database interactions.
+
+### 4.1 Foodpanda API integration tests
+
+Foodpanda-specific API integration tests live in `tests/test_foodpanda_rag_integration.py`. They validate that:
+
+- `/chat` accepts `dataset="foodpanda"` and `company="foodpanda"`.
+- End-to-end responses are returned successfully for Foodpanda RAG scenarios.
+
+Run them (with integration marker) using:
+
+```powershell
+.\venv\Scripts\python -m pytest tests/test_foodpanda_rag_integration.py -m integration
+```
 
 ## 5. Manual end-to-end scenarios
 

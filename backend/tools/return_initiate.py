@@ -16,10 +16,12 @@ RETURN_WINDOW_DAYS = 30
 async def _get_order_by_number(
     session: AsyncSession,
     order_number: str,
+    company_id: Optional[str] = None,
 ) -> Optional[Order]:
-    result = await session.execute(
-        select(Order).where(Order.order_number == order_number)
-    )
+    stmt = select(Order).where(Order.order_number == order_number)
+    if company_id:
+        stmt = stmt.where(Order.company_id == company_id)
+    result = await session.execute(stmt)
     return result.scalars().first()
 
 
@@ -35,6 +37,7 @@ async def _is_return_eligible(order: Order) -> bool:
 async def return_initiate_tool(
     order_number: str,
     user_id: Optional[str] = None,
+    company_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Initiate a return for an order if it is eligible.
@@ -43,7 +46,7 @@ async def return_initiate_tool(
     - Order must be less than RETURN_WINDOW_DAYS old
     """
     async with async_session_factory() as session:
-        order = await _get_order_by_number(session, order_number)
+        order = await _get_order_by_number(session, order_number, company_id=company_id)
         if order is None:
             return {"success": False, "reason": "order_not_found"}
 

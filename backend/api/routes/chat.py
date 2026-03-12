@@ -42,11 +42,12 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 _local_chat_cache: Dict[str, Dict[str, Any]] = {}
 
 
-def _build_chat_cache_key(session_id: str, user_id: str, message: str) -> str:
+def _build_chat_cache_key(session_id: str, user_id: str, message: str, company: str) -> str:
     payload = {
         "session_id": session_id,
         "user_id": user_id,
         "message": message,
+        "company": company,
     }
     raw = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     digest = md5(raw.encode("utf-8")).hexdigest()
@@ -57,13 +58,20 @@ async def _get_or_create_session(
     db: AsyncSession,
     session_id: Optional[str],
     user_id: str,
+    company: str,
 ) -> Session:
     if session_id:
         existing = await db.get(Session, session_id)
         if existing:
+            # Enforce per-session company consistency.
+            if existing.company_id and existing.company_id != company:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="company does not match existing session",
+                )
             return existing
 
-    session = Session(user_id=user_id)
+    session = Session(user_id=user_id, company_id=company)
     db.add(session)
     await db.flush()
     return session
@@ -150,7 +158,7 @@ async def _run_agent_flow(
     root_span = None
     request_status = "ok"
     try:
-        session = await _get_or_create_session(db, req.session_id, req.user_id)
+        session = await _get_or_create_session(db, req.session_id, req.user_id, req.company)
         tracer = get_tracer()
         if tracer is not None:
             span_ctx = tracer.start_as_current_span("conversation")
@@ -182,7 +190,7 @@ async def _run_agent_flow(
 
         cache_hit = False
         cached_payload: Optional[Dict[str, Any]] = None
-        cache_key = _build_chat_cache_key(str(session.id), req.user_id, req.message)
+        cache_key = _build_chat_cache_key(str(session.id), req.user_id, req.message, req.company)
         if use_cache:
             # First try Redis; on error, fall back to local in-memory cache.
             try:
@@ -246,6 +254,7 @@ async def _run_agent_flow(
             "messages": history,
             # Default to "wixqa" when the client does not explicitly choose a dataset.
             "dataset": (req.dataset or "wixqa").lower(),
+            "company_id": req.company,
         }
         trace_id, _ = get_current_trace_ids()
         if trace_id:
@@ -349,7 +358,14 @@ async def _run_intent_only_flow(
     root_span = None
     request_status = "ok"
     try:
-        session = await _get_or_create_session(db, req.session_id, req.user_id)
+        # For intent-only flow, we do not enforce or persist company_id strictly,
+        # but we allow it to be threaded through state for future use.
+        session = await _get_or_create_session(
+            db,
+            req.session_id,
+            req.user_id,
+            req.company or "default",
+        )
         # Intent-only eval must not emit OpenTelemetry traces.
 
         log_event(
@@ -380,6 +396,8 @@ async def _run_intent_only_flow(
             "dataset": (req.dataset or "wixqa").lower(),
             "observability_disabled": True,
         }
+        if req.company:
+            state["company_id"] = req.company
         if req.intent_prompt_profile:
             state["intent_prompt_profile"] = req.intent_prompt_profile
 

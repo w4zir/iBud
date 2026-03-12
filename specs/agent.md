@@ -28,8 +28,8 @@ flowchart TD
   executor --> validator
   validator -->|"failed"| planner
   validator -->|"passed"| responseGenerator
-  planner -->|"cycle>3"| humanEscalation
-  validator -->|"sentiment<0.3"| humanEscalation
+  planner -->|"cycle>AGENT_PLANNER_MAX_CYCLES"| humanEscalation
+  validator -->|"sentiment<AGENT_SENTIMENT_THRESHOLD"| humanEscalation
   responseGenerator --> finalResponse["FinalResponse"]
   humanEscalation --> finalResponse
 ```
@@ -142,13 +142,13 @@ Validator does **not** receive multi-turn chat history to stay within an efficie
 ## Human escalation policy
 
 Immediate escalation triggers:
-- **Intent Classifier** sentiment_score < 0.3
-- **Validator** sentiment_score < 0.3
+- **Intent Classifier** sentiment_score < `AGENT_SENTIMENT_THRESHOLD` (default: 0.3)
+- **Validator** sentiment_score < `AGENT_SENTIMENT_THRESHOLD` (default: 0.3)
 - user is angry (detected from the latest message)
 - user explicitly requests a human
 
 Loop guard:
-- if **planner_cycle_count > 3**: escalate to human
+- if **planner_cycle_count > `AGENT_PLANNER_MAX_CYCLES`** (default: 5): escalate to human
 
 On escalation, the system performs **dual-write**:
 - call external handoff integration (`HUMAN_HANDOFF_URL`, best-effort)

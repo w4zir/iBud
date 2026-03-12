@@ -12,6 +12,8 @@ class ChatRequest(BaseModel):
     message: str
     # Optional dataset key for retrieval (e.g. "wixqa", "bitext").
     dataset: Optional[str] = "wixqa"
+    # Required company identifier for scoping (e.g. "foodpanda").
+    company: str
 
 
 class IntentClassifyRequest(BaseModel):
@@ -22,6 +24,8 @@ class IntentClassifyRequest(BaseModel):
     dataset: Optional[str] = "wixqa"
     # Optional prompt profile override for intent classification (e.g. "default", "bitext").
     intent_prompt_profile: Optional[str] = None
+    # Optional company identifier for scoping intent classification.
+    company: Optional[str] = None
 
 
 class Source(BaseModel):

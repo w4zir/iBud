@@ -26,7 +26,13 @@ def test_chat_creates_session_and_persists_messages(monkeypatch):
 
     resp = client.post(
         "/chat/",
-        json={"session_id": None, "user_id": "test-user", "message": "Hello"},
+        json={
+            "session_id": None,
+            "user_id": "test-user",
+            "message": "Hello",
+            "dataset": "wixqa",
+            "company": "default",
+        },
     )
     assert resp.status_code == 200
     data = resp.json()
@@ -54,7 +60,13 @@ def test_chat_cache_same_query(monkeypatch):
 
     first = client.post(
         "/chat/",
-        json={"session_id": None, "user_id": "test-user", "message": "Hi there"},
+        json={
+            "session_id": None,
+            "user_id": "test-user",
+            "message": "Hi there",
+            "dataset": "wixqa",
+            "company": "default",
+        },
     )
     assert first.status_code == 200
     first_data = first.json()
@@ -63,7 +75,13 @@ def test_chat_cache_same_query(monkeypatch):
 
     second = client.post(
         "/chat/",
-        json={"session_id": session_id, "user_id": "test-user", "message": "Hi there"},
+        json={
+            "session_id": session_id,
+            "user_id": "test-user",
+            "message": "Hi there",
+            "dataset": "wixqa",
+            "company": "default",
+        },
     )
     assert second.status_code == 200
     second_data = second.json()
@@ -88,7 +106,13 @@ def test_sessions_history_endpoint(monkeypatch):
 
     resp = client.post(
         "/chat/",
-        json={"session_id": None, "user_id": "history-user", "message": "Check history"},
+        json={
+            "session_id": None,
+            "user_id": "history-user",
+            "message": "Check history",
+            "dataset": "wixqa",
+            "company": "default",
+        },
     )
     assert resp.status_code == 200
     data = resp.json()
@@ -141,6 +165,7 @@ def test_chat_intent_endpoint_persists_and_classifies(monkeypatch):
             "message": "please cancel my order",
             "dataset": "bitext",
             "intent_prompt_profile": "bitext",
+            "company": "default",
         },
     )
     assert resp.status_code == 200

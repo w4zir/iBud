@@ -13,12 +13,15 @@ async def _lookup_order(
     session: AsyncSession,
     order_number: Optional[str],
     user_id: Optional[str],
+    company_id: Optional[str],
 ) -> List[Dict[str, Any]]:
     stmt = select(Order)
     if order_number:
         stmt = stmt.where(Order.order_number == order_number)
     if user_id:
         stmt = stmt.where(Order.user_id == user_id)
+    if company_id:
+        stmt = stmt.where(Order.company_id == company_id)
 
     result = await session.execute(stmt)
     orders = []
@@ -45,12 +48,18 @@ async def _lookup_order(
 async def order_lookup_tool(
     order_number: Optional[str] = None,
     user_id: Optional[str] = None,
+    company_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Look up the status and details of a customer order by order number or user_id.
     """
     async with async_session_factory() as session:
-        orders = await _lookup_order(session, order_number=order_number, user_id=user_id)
+        orders = await _lookup_order(
+            session,
+            order_number=order_number,
+            user_id=user_id,
+            company_id=company_id,
+        )
     return {"orders": orders}
 
 

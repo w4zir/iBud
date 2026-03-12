@@ -177,6 +177,7 @@ async def test_retriever_records_embedding_and_rerank_latency(monkeypatch):
         category,
         tier_filter,
         source=None,
+        company_id=None,
     ):
         return [
             RetrievedDoc(

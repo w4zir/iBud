@@ -31,6 +31,12 @@ DATASETS: Dict[str, DatasetConfig] = {
         source="bitext",
         description="Bitext customer-support QA pairs",
     ),
+    # Foodpanda policy markdown corpus ingested via ingest_foodpanda.
+    "foodpanda": DatasetConfig(
+        key="foodpanda",
+        source="foodpanda",
+        description="Foodpanda e-commerce policy documentation",
+    ),
 }
 
 

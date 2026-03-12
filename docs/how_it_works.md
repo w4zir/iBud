@@ -259,7 +259,10 @@ Based on `backend/agent/orchestrator.py`.
 
 ```pseudo
 intent_classifier(user_message) -> intent, sentiment_score, user_requested_human
-if sentiment_score < 0.3 or user_requested_human or angry: escalate_to_human()
+if sentiment_score < AGENT_SENTIMENT_THRESHOLD (default: 0.3)
+   or user_requested_human
+   or angry:
+    escalate_to_human()
 
 planner(cycle_count, user_request, intent, feedback?) -> plan_json
 evaluator(user_request, plan_json) -> plan_valid, feedback
@@ -267,7 +270,7 @@ if not plan_valid: loop planner (cycle_count++)
 
 workflow_engine(plan_json) -> result_json (tasks executed with retries)
 validator(plan_json, result_json) -> achieved, feedback, sentiment_score
-if sentiment_score < 0.3: escalate_to_human()
+if sentiment_score < AGENT_SENTIMENT_THRESHOLD (default: 0.3): escalate_to_human()
 if not achieved: loop planner (cycle_count++)
 
 response_generator(plan_json, result_json) -> final_response

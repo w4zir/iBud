@@ -44,6 +44,8 @@ class CacheKeyParts:
     rerank: bool
     # Optional dataset/source identifier (for example "wixqa", "bitext").
     source: Optional[str] = None
+    # Optional company/tenant identifier for strict scoping.
+    company_id: Optional[str] = None
 
 
 def build_cache_key(parts: CacheKeyParts) -> str:
@@ -57,6 +59,7 @@ def build_cache_key(parts: CacheKeyParts) -> str:
         "top_k": parts.top_k,
         "rerank": parts.rerank,
         "source": parts.source,
+        "company_id": parts.company_id,
     }
     raw = json.dumps(payload, sort_keys=True, separators=(",", ":"))
     digest = md5(raw.encode("utf-8")).hexdigest()
