@@ -111,7 +111,7 @@ def get_llm(*, role: str | None = None):
             # Default: smaller/faster model for most stages; planner can be overridden.
             model = os.getenv("OLLAMA_MODEL", "llama3.2")
             if role == "planner":
-                model = os.getenv("OLLAMA_PLANNER_MODEL", "glm-5")
+                model = os.getenv("OLLAMA_PLANNER_MODEL", model)  # default: same as OLLAMA_MODEL
             elif role == "small":
                 model = os.getenv("OLLAMA_SMALL_MODEL", model)
             return ChatOllama(

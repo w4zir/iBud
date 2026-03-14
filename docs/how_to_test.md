@@ -83,6 +83,11 @@ Foodpanda-specific API integration tests live in `tests/test_foodpanda_rag_integ
 - `/chat` accepts `dataset="foodpanda"` and `company="foodpanda"`.
 - End-to-end responses are returned successfully for Foodpanda RAG scenarios.
 
+These tests require the **company-scoped schema migration**
+`infra/postgres/migrations/006_add_company_id.sql` to be applied so that the
+`company_id` column exists on `documents`, `sessions`, and `orders`. If you
+haven’t run it yet, see `docs/how_to_run.md` §7.4 for the exact commands.
+
 Run them (with integration marker) using:
 
 ```powershell
@@ -317,6 +322,15 @@ In addition to RAGAS, you can directly evaluate the agent's **intent classificat
 ### 8.1 Run Bitext intent evaluation
 
 With the backend running and Bitext ingested/testsets built:
+
+> **Database migration prerequisite:** Ensure the intent-eval migration
+> `infra/postgres/migrations/005_intent_eval.sql` has been applied so that the
+> `intent_eval_runs` and `intent_eval_predictions` tables exist. You can apply
+> it via the commands in `docs/how_to_run.md` §7.4, or directly:
+>
+> ```powershell
+> Get-Content infra/postgres/migrations/005_intent_eval.sql | docker compose exec -T postgres psql -U $env:POSTGRES_USER -d $env:POSTGRES_DB
+> ```
 
 ```powershell
 .\venv\Scripts\python -m evaluation.intent_eval `

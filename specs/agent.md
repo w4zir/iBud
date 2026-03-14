@@ -9,8 +9,8 @@ The runtime flow is:
 `intent_classifier -> planner -> evaluator -> workflow_engine -> executor -> validator -> response_generator`
 
 Key properties:
-- **Planner uses a larger model** (default: `glm-5` on Ollama).
-- **All other LLM stages use a smaller model** (default: `llama3.2` on Ollama).
+- **Planner model** is configurable via `OLLAMA_PLANNER_MODEL`; default is the same as `OLLAMA_MODEL` (e.g. `llama3.2`).
+- **All other LLM stages** use the small model (default: `llama3.2` on Ollama).
 - **Executor never uses an LLM**; it only calls deterministic tools/APIs.
 - **Validator only receives the Plan and the Result**, not the full multi-turn history.
 - **Planner Cycle counter is persisted in workflow state JSON**, not only in LLM context.
@@ -42,7 +42,7 @@ Runtime model selection is role-based via `backend/config.py:get_llm(role=...)`.
 
 ### Ollama (default)
 - **Small model**: `OLLAMA_SMALL_MODEL` (default: `llama3.2`)
-- **Planner model**: `OLLAMA_PLANNER_MODEL` (default: `glm-5`)
+- **Planner model**: `OLLAMA_PLANNER_MODEL` (default: same as `OLLAMA_MODEL`, e.g. `llama3.2`)
 
 Shared:
 - `OLLAMA_BASE_URL` (default: `http://localhost:11434`)

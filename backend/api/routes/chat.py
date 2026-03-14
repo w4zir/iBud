@@ -25,6 +25,7 @@ from ...observability.prometheus_metrics import (
     request_count,
     request_latency,
 )
+from ...observability.langsmith_tracer import chat_request_trace
 from ...observability.otel import get_current_trace_ids, get_tracer
 from ...observability.warehouse import record_outcome, update_session_analytics
 from ..models import (
@@ -259,7 +260,8 @@ async def _run_agent_flow(
         trace_id, _ = get_current_trace_ids()
         if trace_id:
             state["trace_id"] = trace_id
-        final_state = await run_orchestrated_agent(state)
+        async with chat_request_trace(state):
+            final_state = await run_orchestrated_agent(state)
         response_text = final_state.get("final_response") or ""
 
         log_event(

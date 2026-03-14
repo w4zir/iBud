@@ -10,6 +10,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from ..config import get_llm, log_event
+from ..observability.langsmith_tracer import build_stage_run_config, tool_trace
 from ..observability.otel import get_tracer
 from ..observability.warehouse import record_span
 from ..tools.faq_search import faq_search_tool
@@ -161,7 +162,7 @@ Tasks:
    - complaint
    - other
 2) Produce a sentiment_score in [0, 1] where 0 is very negative/angry and 1 is very positive.
-3) Determine if the user explicitly requested a human agent.
+3) Determine if the user explicitly requested to talk to a human agent like "I want to talk to a human agent" or "I want to talk to a human" or "I want to talk to a human support".
 
 Return ONLY valid JSON with this shape:
 {
@@ -344,34 +345,51 @@ def _toposort(tasks: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     return ordered
 
 
-async def _execute_action(action: str, params: Dict[str, Any], state: AgentState) -> ToolResult:
-    try:
-        if action == "kb_search":
-            query = params.get("query") or _get_latest_user_message(state)
-            category = params.get("category")
-            top_k = int(params.get("top_k") or 5)
-            # Map to FAQ search tool (KB abstraction) to keep compatibility with current stack.
-            result = await faq_search_tool(query=query, category=category, top_k=top_k)
-        elif action == "faq_search":
-            query = params.get("query") or _get_latest_user_message(state)
-            category = params.get("category")
-            top_k = int(params.get("top_k") or 5)
-            result = await faq_search_tool(query=query, category=category, top_k=top_k)
-        elif action == "order_lookup":
-            result = await order_lookup_tool(
-                order_number=params.get("order_number"),
-                user_id=params.get("user_id") or state.get("user_id"),
-            )
-        elif action == "return_initiate":
-            result = await return_initiate_tool(
-                order_number=params.get("order_number"),
-                user_id=params.get("user_id") or state.get("user_id"),
-            )
-        else:
-            raise ValueError(f"Unknown action: {action}")
-        return ToolResult(name=action, success=True, result=result, error=None)
-    except Exception as exc:
-        return ToolResult(name=action, success=False, result={}, error=str(exc))
+async def _execute_action(
+    action: str,
+    params: Dict[str, Any],
+    state: AgentState,
+    *,
+    task_id: str | None = None,
+    attempt: int | None = None,
+    depends_on: List[str] | None = None,
+) -> ToolResult:
+    run_name = f"agent.tool.{action}"
+    async with tool_trace(
+        state,
+        run_name,
+        task_id=task_id,
+        action=action,
+        attempt=attempt,
+        depends_on=depends_on,
+    ):
+        try:
+            if action == "kb_search":
+                query = params.get("query") or _get_latest_user_message(state)
+                category = params.get("category")
+                top_k = int(params.get("top_k") or 5)
+                # Map to FAQ search tool (KB abstraction) to keep compatibility with current stack.
+                result = await faq_search_tool(query=query, category=category, top_k=top_k)
+            elif action == "faq_search":
+                query = params.get("query") or _get_latest_user_message(state)
+                category = params.get("category")
+                top_k = int(params.get("top_k") or 5)
+                result = await faq_search_tool(query=query, category=category, top_k=top_k)
+            elif action == "order_lookup":
+                result = await order_lookup_tool(
+                    order_number=params.get("order_number"),
+                    user_id=params.get("user_id") or state.get("user_id"),
+                )
+            elif action == "return_initiate":
+                result = await return_initiate_tool(
+                    order_number=params.get("order_number"),
+                    user_id=params.get("user_id") or state.get("user_id"),
+                )
+            else:
+                raise ValueError(f"Unknown action: {action}")
+            return ToolResult(name=action, success=True, result=result, error=None)
+        except Exception as exc:
+            return ToolResult(name=action, success=False, result={}, error=str(exc))
 
 
 async def run_orchestrated_agent(state: AgentState) -> AgentState:
@@ -393,7 +411,8 @@ async def run_orchestrated_agent(state: AgentState) -> AgentState:
     start = time.perf_counter()
     classifier_llm = get_llm(role="small")  # type: ignore[call-arg]
     classifier_resp = await classifier_llm.ainvoke(
-        [SystemMessage(content=SYSTEM_INTENT_SENTIMENT), HumanMessage(content=user_text)]
+        [SystemMessage(content=SYSTEM_INTENT_SENTIMENT), HumanMessage(content=user_text)],
+        config=build_stage_run_config(state, "agent.intent_classifier"),
     )
     raw_classifier = (classifier_resp.content or "").strip()
     parsed = _extract_json(raw_classifier) or {}
@@ -452,7 +471,8 @@ async def run_orchestrated_agent(state: AgentState) -> AgentState:
             ensure_ascii=False,
         )
         planner_resp = await planner_llm.ainvoke(
-            [SystemMessage(content=SYSTEM_PLANNER_SCHEMA), HumanMessage(content=planner_input)]
+            [SystemMessage(content=SYSTEM_PLANNER_SCHEMA), HumanMessage(content=planner_input)],
+            config=build_stage_run_config(state, "agent.planner", cycle_count=cycle),
         )
         raw_plan = (planner_resp.content or "").strip()
         parsed_plan = _extract_json(raw_plan) or {}
@@ -487,7 +507,8 @@ async def run_orchestrated_agent(state: AgentState) -> AgentState:
             ensure_ascii=False,
         )
         evaluator_resp = await evaluator_llm.ainvoke(
-            [SystemMessage(content=SYSTEM_PLAN_EVALUATOR), HumanMessage(content=evaluator_input)]
+            [SystemMessage(content=SYSTEM_PLAN_EVALUATOR), HumanMessage(content=evaluator_input)],
+            config=build_stage_run_config(state, "agent.evaluator", cycle_count=cycle),
         )
         raw_eval = (evaluator_resp.content or "").strip()
         eval_parsed = _extract_json(raw_eval) or {}
@@ -540,7 +561,14 @@ async def run_orchestrated_agent(state: AgentState) -> AgentState:
             last: ToolResult | None = None
             while attempt < max_attempts:
                 attempt += 1
-                last = await _execute_action(action, params, state)
+                last = await _execute_action(
+                    action,
+                    params,
+                    state,
+                    task_id=task_id,
+                    attempt=attempt,
+                    depends_on=deps,
+                )
                 if last.get("success"):
                     break
                 # small backoff for transient errors
@@ -583,7 +611,8 @@ async def run_orchestrated_agent(state: AgentState) -> AgentState:
             ensure_ascii=False,
         )
         validator_resp = await validator_llm.ainvoke(
-            [SystemMessage(content=SYSTEM_VALIDATOR), HumanMessage(content=validator_input)]
+            [SystemMessage(content=SYSTEM_VALIDATOR), HumanMessage(content=validator_input)],
+            config=build_stage_run_config(state, "agent.validator", cycle_count=cycle),
         )
         raw_val = (validator_resp.content or "").strip()
         val_parsed = _extract_json(raw_val) or {}
@@ -622,7 +651,8 @@ async def run_orchestrated_agent(state: AgentState) -> AgentState:
     resp_llm = get_llm(role="small")  # type: ignore[call-arg]
     gen_input = json.dumps({"plan": plan, "result": execution_results}, ensure_ascii=False)
     final = await resp_llm.ainvoke(
-        [SystemMessage(content=SYSTEM_RESPONSE_GENERATOR), HumanMessage(content=gen_input)]
+        [SystemMessage(content=SYSTEM_RESPONSE_GENERATOR), HumanMessage(content=gen_input)],
+        config=build_stage_run_config(state, "agent.response_generator"),
     )
     answer = (final.content or "").strip()
     state["final_response"] = answer
@@ -663,7 +693,8 @@ async def classify_intent_only(state: AgentState) -> AgentState:
     start = time.perf_counter()
     llm = get_llm(role="small")  # type: ignore[call-arg]
     resp = await llm.ainvoke(
-        [SystemMessage(content=SYSTEM_INTENT_SENTIMENT), HumanMessage(content=user_text)]
+        [SystemMessage(content=SYSTEM_INTENT_SENTIMENT), HumanMessage(content=user_text)],
+        config=build_stage_run_config(state, "agent.intent_classifier"),
     )
     raw = (resp.content or "").strip()
     parsed = _extract_json(raw) or {}
@@ -700,29 +731,31 @@ async def _handle_escalation(state: AgentState, *, reason: str) -> AgentState:
 
     # External handoff first (best-effort)
     external_status: Dict[str, Any] = {}
-    try:
-        external_status = await human_handoff_tool(
-            session_id=state.get("session_id"),
-            user_id=state.get("user_id"),
-            reason=reason,
-            summary=user_text[:1000],
-            plan=plan,
-            result=result,
-        )
-    except Exception as exc:
-        external_status = {"success": False, "error": str(exc)}
+    async with tool_trace(state, "agent.tool.human_handoff", reason=reason):
+        try:
+            external_status = await human_handoff_tool(
+                session_id=state.get("session_id"),
+                user_id=state.get("user_id"),
+                reason=reason,
+                summary=user_text[:1000],
+                plan=plan,
+                result=result,
+            )
+        except Exception as exc:
+            external_status = {"success": False, "error": str(exc)}
 
     # Local ticket for audit/fallback
     ticket_id: Optional[str] = None
-    try:
-        ticket = await ticket_create_tool(
-            issue_type="human_escalation",
-            summary=f"{reason}: {user_text}",
-            session_id=state.get("session_id"),
-        )
-        ticket_id = str(ticket.get("ticket_id")) if ticket.get("ticket_id") else None
-    except Exception:
-        ticket_id = None
+    async with tool_trace(state, "agent.tool.ticket_create", reason=reason):
+        try:
+            ticket = await ticket_create_tool(
+                issue_type="human_escalation",
+                summary=f"{reason}: {user_text}",
+                session_id=state.get("session_id"),
+            )
+            ticket_id = str(ticket.get("ticket_id")) if ticket.get("ticket_id") else None
+        except Exception:
+            ticket_id = None
 
     wf = _ensure_workflow_state(state)
     wf["escalation"] = {

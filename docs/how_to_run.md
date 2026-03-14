@@ -108,16 +108,17 @@ Inside the Ollama container:
 
 ```powershell
 docker compose exec ollama ollama pull llama3.2
-docker compose exec ollama ollama pull glm-5
 docker compose exec ollama ollama pull nomic-embed-text
 ```
+
+Optionally, pull a larger model for the planner and set `OLLAMA_PLANNER_MODEL` in `.env` (e.g. `llama3.1:70b`).
 
 ## 3.1 Agent model routing (runtime)
 
 The runtime uses role-based model selection:
 
-- `OLLAMA_PLANNER_MODEL=glm-5` (larger model for planning)
-- `OLLAMA_SMALL_MODEL=llama3.2` (smaller model for classifier/evaluator/validator/response)
+- **Planner**: `OLLAMA_PLANNER_MODEL` (default: same as `OLLAMA_MODEL`, e.g. `llama3.2`)
+- **Small model**: `OLLAMA_SMALL_MODEL` (default: same as `OLLAMA_MODEL`, e.g. `llama3.2`)
 
 You can override these in `.env` as needed.
 
@@ -268,14 +269,26 @@ Results are written under `evaluation/results/` as `run_<timestamp>.json`, inclu
 
    These RAGAS-specific env vars only affect evaluation runs and do not change which model the agent uses for live chats.
 
-### 7.4 Warehouse migrations (Phases 5-6)
+### 7.4 Database & warehouse migrations (Phases 5-6+)
 
-Apply the new analytics/warehouse migrations in order:
+Apply the new analytics/warehouse and evaluation/multi-tenant migrations in order
+(all files are idempotent and safe to re-run):
 
 ```powershell
 Get-Content infra/postgres/migrations/003_observability_warehouse.sql | docker compose exec -T postgres psql -U $env:POSTGRES_USER -d $env:POSTGRES_DB
-Get-Content infra/postgres/migrations/004_analytics_views.sql | docker compose exec -T postgres psql -U $env:POSTGRES_USER -d $env:POSTGRES_DB
+Get-Content infra/postgres/migrations/004_analytics_views.sql         | docker compose exec -T postgres psql -U $env:POSTGRES_USER -d $env:POSTGRES_DB
+Get-Content infra/postgres/migrations/005_intent_eval.sql             | docker compose exec -T postgres psql -U $env:POSTGRES_USER -d $env:POSTGRES_DB
+Get-Content infra/postgres/migrations/006_add_company_id.sql          | docker compose exec -T postgres psql -U $env:POSTGRES_USER -d $env:POSTGRES_DB
 ```
+
+These additional migrations enable:
+
+- **005_intent_eval.sql**: creates `intent_eval_runs` and `intent_eval_predictions`
+  tables used by `evaluation/intent_eval.py` and the intent-eval sections in
+  `docs/how_to_test.md`.
+- **006_add_company_id.sql**: adds `company_id` columns and indexes to
+  `documents`, `sessions`, and `orders` for multi-tenant/company-scoped flows
+  (for example, Foodpanda policy RAG and company-aware tools).
 
 These migrations add:
 - Warehouse tables: `agent_spans`, `outcomes`, `evaluation_scores`

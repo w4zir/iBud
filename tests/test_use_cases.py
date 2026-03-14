@@ -1,4 +1,5 @@
 import json
+from contextlib import asynccontextmanager
 
 import pytest
 from fastapi.testclient import TestClient
@@ -7,6 +8,156 @@ from backend.main import app
 
 
 client = TestClient(app)
+
+
+@pytest.mark.integration
+def test_chat_creates_single_langsmith_parent_for_orchestrator(monkeypatch):
+    """Chat flow runs run_orchestrated_agent inside one LangSmith parent trace context."""
+    trace_entered = []
+    orchestrator_called_inside_trace = []
+
+    @asynccontextmanager
+    async def fake_chat_request_trace(state):  # type: ignore[no-untyped-def]
+        trace_entered.append(True)
+        try:
+            yield None
+        finally:
+            pass
+
+    async def fake_run(state):  # type: ignore[arg-type]
+        orchestrator_called_inside_trace.append(trace_entered and trace_entered[-1])
+        new_state = dict(state)
+        new_state["final_response"] = "Stubbed response"
+        new_state["retrieved_docs"] = []
+        new_state["tool_results"] = []
+        new_state["should_escalate"] = False
+        new_state["ticket_id"] = None
+        return new_state
+
+    import backend.api.routes.chat as chat_routes
+    import backend.agent.orchestrator as orch_module
+
+    monkeypatch.setattr(chat_routes, "chat_request_trace", fake_chat_request_trace)
+    monkeypatch.setattr(orch_module, "run_orchestrated_agent", fake_run)
+
+    resp = client.post(
+        "/chat/",
+        json={
+            "session_id": None,
+            "user_id": "test-user",
+            "message": "Hello",
+            "dataset": "wixqa",
+            "company": "default",
+        },
+    )
+    assert resp.status_code == 200
+    assert trace_entered == [True], "chat_request_trace context should be entered"
+    assert orchestrator_called_inside_trace == [True], (
+        "run_orchestrated_agent should be called inside chat_request_trace"
+    )
+
+
+@pytest.mark.integration
+def test_chat_trace_collector_sees_chat_request_name_and_run_type(monkeypatch):
+    """When tracing is enabled, parent run name is 'chat_request' and run_type is 'chain'."""
+    collected = []
+
+    class FakeTraceCM:
+        def __init__(self, name: str, run_type: str = "chain", **kwargs: object) -> None:
+            self.name = name
+            self.run_type = run_type
+            self.kwargs = kwargs
+
+        async def __aenter__(self) -> "FakeTraceCM":
+            collected.append({"name": self.name, "run_type": self.run_type})
+            return self
+
+        async def __aexit__(self, *args: object) -> None:
+            pass
+
+    def fake_get_trace() -> type:
+        return FakeTraceCM
+
+    import backend.observability.langsmith_tracer as tracer_module
+    import backend.agent.orchestrator as orch_module
+
+    monkeypatch.setenv("LANGCHAIN_TRACING_V2", "true")
+    monkeypatch.setenv("LANGCHAIN_API_KEY", "ls__test")
+    monkeypatch.setenv("LANGCHAIN_PROJECT", "ecom-support-rag")
+    monkeypatch.setattr(tracer_module, "_get_trace_context_manager", fake_get_trace)
+
+    async def fake_run(state):  # type: ignore[arg-type]
+        new_state = dict(state)
+        new_state["final_response"] = "Stubbed"
+        new_state["retrieved_docs"] = []
+        new_state["tool_results"] = []
+        new_state["should_escalate"] = False
+        new_state["ticket_id"] = None
+        return new_state
+
+    monkeypatch.setattr(orch_module, "run_orchestrated_agent", fake_run)
+
+    resp = client.post(
+        "/chat/",
+        json={
+            "session_id": None,
+            "user_id": "test-user",
+            "message": "Hi",
+            "dataset": "wixqa",
+            "company": "default",
+        },
+    )
+    assert resp.status_code == 200
+    assert len(collected) == 1, "exactly one parent trace should be created"
+    assert collected[0]["name"] == "chat_request"
+    assert collected[0]["run_type"] == "chain"
+
+
+@pytest.mark.integration
+def test_chat_stream_creates_single_langsmith_parent_for_orchestrator(monkeypatch):
+    """Stream chat runs run_orchestrated_agent inside one LangSmith parent trace context."""
+    trace_entered = []
+    orchestrator_called_inside_trace = []
+
+    @asynccontextmanager
+    async def fake_chat_request_trace(state):  # type: ignore[no-untyped-def]
+        trace_entered.append(True)
+        try:
+            yield None
+        finally:
+            pass
+
+    async def fake_run(state):  # type: ignore[arg-type]
+        orchestrator_called_inside_trace.append(trace_entered and trace_entered[-1])
+        new_state = dict(state)
+        new_state["final_response"] = "Streamed response"
+        new_state["retrieved_docs"] = []
+        new_state["tool_results"] = []
+        new_state["should_escalate"] = False
+        new_state["ticket_id"] = None
+        return new_state
+
+    import backend.api.routes.chat as chat_routes
+    import backend.agent.orchestrator as orch_module
+
+    monkeypatch.setattr(chat_routes, "chat_request_trace", fake_chat_request_trace)
+    monkeypatch.setattr(orch_module, "run_orchestrated_agent", fake_run)
+
+    resp = client.post(
+        "/chat/stream",
+        json={
+            "session_id": None,
+            "user_id": "test-user",
+            "message": "Hello",
+            "dataset": "wixqa",
+            "company": "default",
+        },
+    )
+    assert resp.status_code == 200
+    assert trace_entered == [True], "chat_request_trace context should be entered for stream"
+    assert orchestrator_called_inside_trace == [True], (
+        "run_orchestrated_agent should be called inside chat_request_trace for stream"
+    )
 
 
 @pytest.mark.integration
