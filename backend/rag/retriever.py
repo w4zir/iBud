@@ -4,12 +4,12 @@ import time
 from dataclasses import asdict, dataclass
 from typing import Any, Dict, List, Optional
 
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
-
-from ..config import log_event
-from ..db.models import Document
-from ..db.postgres import async_session_factory
+from ..config import (
+    get_es_retrieval_top_k,
+    get_rerank_model,
+    get_rerank_top_k,
+    log_event,
+)
 from ..db.redis_client import CacheKeyParts, build_cache_key, get_cached, set_cached
 from ..observability.prometheus_metrics import (
     cache_hits,
@@ -20,6 +20,7 @@ from ..observability.prometheus_metrics import (
     retrieval_latency,
 )
 from .embeddings import EmbeddingClient
+from .es_client import ESClient, get_es_client
 
 
 @dataclass
@@ -42,14 +43,25 @@ class Retriever:
     def __init__(
         self,
         embedding_client: Optional[EmbeddingClient] = None,
+        es_client: Optional[ESClient] = None,
     ) -> None:
         self._embedding_client = embedding_client or EmbeddingClient()
+        # Unit tests often mock `_similarity_search` / `_maybe_expand_parents`.
+        # In environments without the `elasticsearch` dependency installed,
+        # eager client creation would break those tests.
+        if es_client is not None:
+            self._es_client = es_client
+        else:
+            try:
+                self._es_client = get_es_client()
+            except ImportError:
+                self._es_client = None  # type: ignore[assignment]
         self._cross_encoder = None
 
     async def search(
         self,
         query: str,
-        top_k: int = 5,
+        top_k: int | None = None,
         category: Optional[str] = None,
         tier_filter: Optional[int] = None,
         use_cache: bool = True,
@@ -60,13 +72,14 @@ class Retriever:
         if not query or not query.strip():
             return []
 
+        candidate_top_k = int(top_k if top_k is not None else get_es_retrieval_top_k())
         cache_key = None
         if use_cache:
             parts = CacheKeyParts(
                 query=query,
                 category=category,
                 tier_filter=tier_filter,
-                top_k=top_k,
+                top_k=candidate_top_k,
                 rerank=rerank,
                 source=source,
                 company_id=company_id,
@@ -96,28 +109,29 @@ class Retriever:
             except Exception:
                 pass
 
-        async with async_session_factory() as session:
-            db_start = time.perf_counter()
-            docs = await self._similarity_search(
-                session=session,
-                query_vector=query_vector,
-                top_k=top_k,
-                category=category,
-                tier_filter=tier_filter,
-                source=source,
-                company_id=company_id,
+        db_start = time.perf_counter()
+        docs = await self._similarity_search(
+            query_vector=query_vector,
+            top_k=candidate_top_k,
+            category=category,
+            tier_filter=tier_filter,
+            source=source,
+            company_id=company_id,
+        )
+        try:
+            db_latency.labels(operation="similarity_search").observe(
+                time.perf_counter() - db_start
             )
-            try:
-                db_latency.labels(operation="similarity_search").observe(
-                    time.perf_counter() - db_start
-                )
-            except Exception:
-                pass
+        except Exception:
+            pass
 
         docs = await type(self)._maybe_expand_parents(docs)
 
         if rerank:
             docs = await self._rerank(query, docs)
+            rerank_top_k = get_rerank_top_k()
+            if rerank_top_k > 0:
+                docs = docs[:rerank_top_k]
 
         latency = time.perf_counter() - start_time
         try:
@@ -143,7 +157,6 @@ class Retriever:
 
     async def _similarity_search(
         self,
-        session: AsyncSession,
         query_vector: List[float],
         top_k: int,
         category: Optional[str],
@@ -151,44 +164,32 @@ class Retriever:
         source: Optional[str],
         company_id: Optional[str],
     ) -> List[RetrievedDoc]:
-        distance = Document.embedding.cosine_distance(query_vector)
-        stmt = select(
-            Document,
-            distance.label("score"),
-        ).where(Document.embedding.is_not(None))
-
-        if company_id:
-            stmt = stmt.where(Document.company_id == company_id)
-
-        if category:
-            stmt = stmt.where(Document.category == category)
-
-        if tier_filter is not None:
-            stmt = stmt.where(Document.doc_tier == tier_filter)
-
-        if source:
-            stmt = stmt.where(Document.source == source)
-
-        stmt = stmt.order_by(distance).limit(top_k)
-
-        result = await session.execute(stmt)
-        rows = result.all()
-
-        docs: List[RetrievedDoc] = []
-        for doc, score in rows:
-            metadata: Dict[str, Any] = doc.metadata_ or {}
-            docs.append(
-                RetrievedDoc(
-                    content=doc.content,
-                    metadata=metadata,
-                    score=float(score) if score is not None else 0.0,
-                    source=doc.source,
-                    doc_tier=doc.doc_tier,
-                    document_id=str(doc.id),
-                    parent_id=doc.parent_id,
-                )
+        if self._es_client is None:
+            raise ImportError(
+                "Elasticsearch dependency is not installed. "
+                "Install with: pip install elasticsearch"
             )
-        return docs
+        rows = await self._es_client.vector_search(
+            query_vector=query_vector,
+            top_k=top_k,
+            company_id=company_id,
+            category=category,
+            tier_filter=tier_filter,
+            source=source,
+        )
+
+        return [
+            RetrievedDoc(
+                content=r.get("content", ""),
+                metadata=r.get("metadata") or {},
+                score=float(r.get("score") or 0.0),
+                source=r.get("source"),
+                doc_tier=int(r.get("doc_tier") or 1),
+                document_id=str(r.get("document_id") or ""),
+                parent_id=r.get("parent_id"),
+            )
+            for r in rows
+        ]
 
     @staticmethod
     async def _maybe_expand_parents(
@@ -205,27 +206,27 @@ class Retriever:
         if not parent_ids:
             return docs
 
-        async with async_session_factory() as session:
-            result = await session.execute(
-                select(Document).where(Document.id.in_(parent_ids))
-            )
-            parents_by_id = {str(doc.id): doc for (doc,) in result.all()}
+        es_client = get_es_client()
+        parent_rows = await es_client.get_documents_by_ids(list(parent_ids))
+        parents_by_id = {
+            str(r.get("document_id") or ""): r for r in parent_rows if r.get("document_id")
+        }
 
         expanded: List[RetrievedDoc] = []
         for d in docs:
             expanded.append(d)
             if d.parent_id and d.score <= score_threshold:
-                parent = parents_by_id.get(d.parent_id)
+                parent = parents_by_id.get(str(d.parent_id))
                 if parent:
-                    metadata: Dict[str, Any] = parent.metadata_ or {}
+                    metadata: Dict[str, Any] = parent.get("metadata") or {}
                     expanded.append(
                         RetrievedDoc(
-                            content=parent.content,
+                            content=parent.get("content", ""),
                             metadata=metadata,
                             score=d.score,
-                            source=parent.source,
-                            doc_tier=parent.doc_tier,
-                            document_id=str(parent.id),
+                            source=parent.get("source"),
+                            doc_tier=int(parent.get("doc_tier") or 1),
+                            document_id=str(parent.get("document_id") or ""),
                             parent_id=None,
                         )
                     )
@@ -238,7 +239,7 @@ class Retriever:
             from sentence_transformers import CrossEncoder  # type: ignore[import]
 
             # Lightweight general-purpose cross-encoder; can be tuned later.
-            self._cross_encoder = CrossEncoder("cross-encoder/ms-marco-MiniLM-L-6-v2")
+            self._cross_encoder = CrossEncoder(get_rerank_model())
         except Exception:  # pragma: no cover - optional dependency path
             self._cross_encoder = None
 

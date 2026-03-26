@@ -19,6 +19,7 @@ from ..db.models import Document
 from ..db.postgres import async_session_factory
 from .chunker import chunk_article, prepare_article_for_chunking
 from .embeddings import get_client
+from .es_client import get_es_client
 
 
 SOURCE_WIXQA = "wixqa"
@@ -83,16 +84,18 @@ async def _insert_children(
     chunks: List[Tuple[str, Dict[str, Any]]],
     embeddings: List[List[float]],
     source_id_prefix: str,
-) -> None:
+) -> List[Dict[str, Any]]:
     """Insert child documents with embeddings and parent_id."""
     if len(chunks) != len(embeddings):
         raise ValueError("Chunks and embeddings length mismatch")
 
+    es_docs: List[Dict[str, Any]] = []
     for i, ((content, meta), embedding) in enumerate(zip(chunks, embeddings)):
         category = meta.get("category")
+        doc_id = str(uuid.uuid4())
         await session.execute(
             insert(Document.__table__).values(
-                id=str(uuid.uuid4()),
+                id=doc_id,
                 content=content,
                 parent_id=parent_id,
                 embedding=embedding,
@@ -103,6 +106,22 @@ async def _insert_children(
                 metadata=meta,
             )
         )
+        es_docs.append(
+            {
+                "id": doc_id,
+                "content": content,
+                "embedding": embedding,
+                "company_id": None,
+                "source": SOURCE_WIXQA,
+                "doc_tier": DOC_TIER_KB,
+                "category": category,
+                "source_id": f"{source_id_prefix}-chunk-{i}",
+                "parent_id": parent_id,
+                "metadata": meta,
+            }
+        )
+
+    return es_docs
 
 
 async def ingest_wixqa() -> None:
@@ -123,6 +142,8 @@ async def ingest_wixqa() -> None:
     ds = load_dataset(dataset_name, WIX_KB_SPLIT, split="train")
 
     client = get_client()
+    es_client = get_es_client()
+    await es_client.ensure_index()
     total_parents = 0
     total_children = 0
 
@@ -144,6 +165,22 @@ async def ingest_wixqa() -> None:
                     meta=meta,
                 )
                 total_parents += 1
+                await es_client.bulk_index(
+                    [
+                        {
+                            "id": parent_id,
+                            "content": full_text,
+                            "embedding": None,
+                            "company_id": None,
+                            "source": SOURCE_WIXQA,
+                            "doc_tier": DOC_TIER_KB,
+                            "category": meta.get("category"),
+                            "source_id": source_id,
+                            "parent_id": None,
+                            "metadata": meta,
+                        }
+                    ]
+                )
                 continue
 
             # Parent row (full article)
@@ -160,13 +197,29 @@ async def ingest_wixqa() -> None:
             # Child chunks with embeddings
             child_texts = [c[0] for c in chunks]
             vectors = client.embed_documents(child_texts)
-            await _insert_children(
+            es_docs: List[Dict[str, Any]] = [
+                {
+                    "id": parent_id,
+                    "content": full_text,
+                    "embedding": None,
+                    "company_id": None,
+                    "source": SOURCE_WIXQA,
+                    "doc_tier": DOC_TIER_KB,
+                    "category": meta.get("category"),
+                    "source_id": source_id,
+                    "parent_id": None,
+                    "metadata": meta,
+                }
+            ]
+            child_docs = await _insert_children(
                 session,
                 parent_id=parent_id,
                 chunks=chunks,
                 embeddings=vectors,
                 source_id_prefix=source_id,
             )
+            es_docs.extend(child_docs)
+            await es_client.bulk_index(es_docs)
             total_children += len(chunks)
 
         await session.commit()

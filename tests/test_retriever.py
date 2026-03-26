@@ -171,3 +171,38 @@ async def test_rerank_changes_order_when_encoder_available(monkeypatch: pytest.M
     docs = await retriever.search("Where is my order?", use_cache=True, rerank=True)
     assert [d.content for d in docs] == ["low", "high"]
 
+
+@pytest.mark.asyncio
+async def test_search_uses_es_retrieval_top_k_from_env(monkeypatch: pytest.MonkeyPatch):
+    from backend.rag.es_client import ESClient
+
+    monkeypatch.setenv("ES_RETRIEVAL_TOP_K", "12")
+
+    mock_es = ESClient(es=MagicMock(), index_name="test-index", embedding_dim=4)  # type: ignore[name-defined]
+    mock_es.vector_search = AsyncMock(
+        return_value=[
+            {
+                "content": "doc",
+                "metadata": {},
+                "score": 0.1,
+                "source": "wixqa",
+                "doc_tier": 1,
+                "document_id": "doc-1",
+                "parent_id": None,
+            }
+        ]
+    )
+
+    monkeypatch.setattr(
+        Retriever,
+        "_maybe_expand_parents",
+        AsyncMock(side_effect=lambda docs, score_threshold=0.4: docs),
+    )
+
+    retriever = Retriever(embedding_client=DummyEmbeddingClient([0.0] * 4), es_client=mock_es)  # type: ignore[arg-type]
+    docs = await retriever.search("question", use_cache=False, rerank=False)
+    assert len(docs) == 1
+
+    _, kwargs = mock_es.vector_search.await_args
+    assert kwargs["top_k"] == 12
+

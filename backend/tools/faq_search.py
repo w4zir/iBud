@@ -8,7 +8,7 @@ from ..rag.retriever import RetrievedDoc, Retriever
 async def faq_search_tool(
     query: str,
     category: Optional[str] = None,
-    top_k: int = 5,
+    top_k: int | None = None,
 ) -> Dict[str, Any]:
     """
     Thin wrapper over Retriever.search() for use as an agent tool.

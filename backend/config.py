@@ -133,3 +133,49 @@ def get_embedding_model():
             model=os.getenv("EMBEDDING_MODEL_OLLAMA", "nomic-embed-text"),
             base_url=os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
         )
+
+
+def get_es_host() -> str:
+    return os.getenv("ES_HOST", "elasticsearch")
+
+
+def get_es_port() -> int:
+    try:
+        return int(os.getenv("ES_PORT", "9200"))
+    except ValueError:
+        return 9200
+
+
+def get_es_index_name() -> str:
+    return os.getenv("ES_INDEX_NAME", "ecom-support-documents")
+
+
+def get_es_retrieval_top_k() -> int:
+    try:
+        return int(os.getenv("ES_RETRIEVAL_TOP_K", "40"))
+    except ValueError:
+        return 40
+
+
+def get_rerank_model() -> str:
+    return os.getenv("RERANK_MODEL", "cross-encoder/ms-marco-MiniLM-L-6-v2")
+
+
+def get_rerank_top_k() -> int:
+    try:
+        return int(os.getenv("RERANK_TOP_K", "5"))
+    except ValueError:
+        return 5
+
+
+def get_classifier_model() -> str:
+    return os.getenv(
+        "CLASSIFIER_MODEL", "MoritzLaurer/ModernBERT-base-zeroshot-v2.0"
+    )
+
+
+def get_classifier_threshold() -> float:
+    try:
+        return float(os.getenv("CLASSIFIER_THRESHOLD", "0.7"))
+    except ValueError:
+        return 0.7

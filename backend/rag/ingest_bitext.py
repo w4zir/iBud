@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ..db.models import Document
 from ..db.postgres import async_session_factory
 from .embeddings import get_client
+from .es_client import get_es_client
 
 
 SOURCE_BITEXT = "bitext"
@@ -84,6 +85,9 @@ async def ingest_bitext() -> None:
 
     client = get_client()
     total_rows = 0
+    es_client = get_es_client()
+    await es_client.ensure_index()
+    es_docs_buffer: List[Dict[str, Any]] = []
 
     async with async_session_factory() as session:
         for idx, row in enumerate(ds):
@@ -105,9 +109,36 @@ async def ingest_bitext() -> None:
                 category=meta.get("category"),
                 meta=meta,
             )
+            # Buffer ES docs to reduce request overhead.
+            # (Postgres insertion remains the source of truth for metadata.)
             total_rows += 1
 
+            es_docs_buffer.append(
+                {
+                    # `_insert_document` generates the doc_id inside Postgres, so
+                    # we also generate an ES id here using the same deterministic
+                    # value: the source_id is globally unique per row.
+                    "id": f"bitext-{idx}",
+                    "content": content,
+                    "embedding": vector,
+                    "company_id": None,
+                    "source": SOURCE_BITEXT,
+                    "doc_tier": DOC_TIER_BITEXT,
+                    "category": meta.get("category"),
+                    "source_id": f"bitext-{idx}",
+                    "parent_id": None,
+                    "metadata": meta,
+                }
+            )
+
+            if len(es_docs_buffer) >= 100:
+                await es_client.bulk_index(es_docs_buffer)
+                es_docs_buffer.clear()
+
         await session.commit()
+
+    if es_docs_buffer:
+        await es_client.bulk_index(es_docs_buffer)
 
     print(f"Bitext ingestion complete. documents (source={SOURCE_BITEXT}) inserted={total_rows}")
 

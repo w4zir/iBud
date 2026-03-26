@@ -13,6 +13,7 @@ from ..config import get_llm, log_event
 from ..observability.langsmith_tracer import build_stage_run_config, tool_trace
 from ..observability.otel import get_tracer
 from ..observability.warehouse import record_span
+from ..rag.query_classifier import get_query_classifier
 from ..tools.faq_search import faq_search_tool
 from ..tools.order_lookup import order_lookup_tool
 from ..tools.return_initiate import return_initiate_tool
@@ -173,7 +174,7 @@ Return ONLY valid JSON with this shape:
 """.strip()
 
 
-SYSTEM_PLANNER_SCHEMA = """
+SYSTEM_PLANNER_SCHEMA_ISSUE = """
 You are the planner. Produce a plan as JSON only, matching exactly this schema:
 {
   "plan_id": "<string>",
@@ -201,6 +202,36 @@ Available actions:
 - kb_search (params: {\"query\": string, \"category\": string|null, \"top_k\": int})
 - order_lookup (params: {\"order_number\": string|null, \"user_id\": string|null})
 - return_initiate (params: {\"order_number\": string, \"user_id\": string|null})
+- faq_search (params: {\"query\": string, \"category\": string|null, \"top_k\": int})
+""".strip()
+
+
+SYSTEM_PLANNER_SCHEMA_NON_ISSUE = """
+You are the planner. Produce a plan as JSON only, matching exactly this schema:
+{
+  "plan_id": "<string>",
+  "tasks": [
+    {
+      "task_id": "<string>",
+      "action": "<string>",
+      "params": { },
+      "depends_on": ["<task_id>", "..."]
+    }
+  ],
+  "metadata": {
+    "strategy": "<string>",
+    "cycle_count": <int>,
+    "user_request": "<string>"
+  }
+}
+
+Rules:
+- Choose actions that can be executed without an LLM (deterministic tools/APIs only).
+- Keep tasks minimal; include dependencies only when necessary.
+- If the user asked for a human, create no tasks and set strategy accordingly.
+
+Available actions:
+- kb_search (params: {\"query\": string, \"category\": string|null, \"top_k\": int})
 - faq_search (params: {\"query\": string, \"category\": string|null, \"top_k\": int})
 """.strip()
 
@@ -282,7 +313,15 @@ async def _record_span_nonblocking(
         return
 
 
-def _allowed_actions() -> set[str]:
+def _allowed_actions(query_type: Optional[str]) -> set[str]:
+    """
+    Coarse pipeline routing:
+    - issue: allow order/return related tools
+    - non_issue: allow only knowledge-base retrieval tools
+    """
+
+    if query_type == "non_issue":
+        return {"kb_search", "faq_search"}
     return {"kb_search", "order_lookup", "return_initiate", "faq_search"}
 
 
@@ -297,7 +336,7 @@ def _normalize_plan(plan: Dict[str, Any], *, cycle_count: int, user_request: str
     return plan
 
 
-def _validate_plan_schema(plan: Any) -> Tuple[bool, str]:
+def _validate_plan_schema(plan: Any, *, query_type: Optional[str]) -> Tuple[bool, str]:
     if not isinstance(plan, dict):
         return False, "plan is not an object"
     if not plan.get("plan_id"):
@@ -316,7 +355,7 @@ def _validate_plan_schema(plan: Any) -> Tuple[bool, str]:
             return False, "depends_on must be a list"
         if "params" in t and not isinstance(t.get("params"), dict):
             return False, "params must be an object"
-        if str(t.get("action")) not in _allowed_actions():
+        if str(t.get("action")) not in _allowed_actions(query_type):
             return False, f"unsupported action: {t.get('action')}"
     return True, "ok"
 
@@ -367,13 +406,19 @@ async def _execute_action(
             if action == "kb_search":
                 query = params.get("query") or _get_latest_user_message(state)
                 category = params.get("category")
-                top_k = int(params.get("top_k") or 5)
+                top_k_raw = params.get("top_k")
+                top_k = int(top_k_raw) if top_k_raw is not None else None
+                if top_k is not None and top_k <= 0:
+                    top_k = None
                 # Map to FAQ search tool (KB abstraction) to keep compatibility with current stack.
                 result = await faq_search_tool(query=query, category=category, top_k=top_k)
             elif action == "faq_search":
                 query = params.get("query") or _get_latest_user_message(state)
                 category = params.get("category")
-                top_k = int(params.get("top_k") or 5)
+                top_k_raw = params.get("top_k")
+                top_k = int(top_k_raw) if top_k_raw is not None else None
+                if top_k is not None and top_k <= 0:
+                    top_k = None
                 result = await faq_search_tool(query=query, category=category, top_k=top_k)
             elif action == "order_lookup":
                 result = await order_lookup_tool(
@@ -406,6 +451,49 @@ async def run_orchestrated_agent(state: AgentState) -> AgentState:
     wf = _ensure_workflow_state(state)
     tracer = get_tracer()
     user_text = _get_latest_user_message(state)
+
+    # 0) Query type classifier (ModernBERT): coarse "issue" vs "non-issue" routing.
+    query_type: str = "issue"
+    classifier_confidence: Optional[float] = None
+    classifier_label: Optional[str] = None
+    try:
+        qc = get_query_classifier()
+        start = time.perf_counter()
+        qc_res = qc.classify(user_text)
+        classifier_confidence = qc_res.confidence
+        classifier_label = qc_res.label
+        query_type = "issue" if qc_res.is_issue else "non_issue"
+        state["query_type"] = query_type  # type: ignore[assignment]
+        wf["query_classifier"] = {
+            "label": classifier_label,
+            "confidence": classifier_confidence,
+            "is_issue": qc_res.is_issue,
+        }
+        await _record_span_nonblocking(
+            state,
+            "query_classifier",
+            latency_ms=(time.perf_counter() - start) * 1000.0,
+            query_type=query_type,
+            confidence=classifier_confidence,
+            label=classifier_label,
+            status="ok",
+        )
+    except Exception as exc:
+        # If the classifier fails for any reason, fall back to "issue" to avoid
+        # overly restricting tools.
+        state["query_type"] = query_type  # type: ignore[assignment]
+        wf["query_classifier_error"] = str(exc)
+        try:
+            await _record_span_nonblocking(
+                state,
+                "query_classifier",
+                latency_ms=0.0,
+                query_type=query_type,
+                status="error",
+                error=str(exc),
+            )
+        except Exception:
+            pass
 
     # 1) Intent classifier (small model)
     start = time.perf_counter()
@@ -464,6 +552,7 @@ async def run_orchestrated_agent(state: AgentState) -> AgentState:
         planner_input = json.dumps(
             {
                 "intent": intent,
+                "query_type": query_type,
                 "user_request": user_text,
                 "cycle_count": cycle,
                 "previous_feedback": plan_feedback or validator_feedback or "",
@@ -471,7 +560,16 @@ async def run_orchestrated_agent(state: AgentState) -> AgentState:
             ensure_ascii=False,
         )
         planner_resp = await planner_llm.ainvoke(
-            [SystemMessage(content=SYSTEM_PLANNER_SCHEMA), HumanMessage(content=planner_input)],
+            [
+                SystemMessage(
+                    content=(
+                        SYSTEM_PLANNER_SCHEMA_NON_ISSUE
+                        if query_type == "non_issue"
+                        else SYSTEM_PLANNER_SCHEMA_ISSUE
+                    )
+                ),
+                HumanMessage(content=planner_input),
+            ],
             config=build_stage_run_config(state, "agent.planner", cycle_count=cycle),
         )
         raw_plan = (planner_resp.content or "").strip()
@@ -489,7 +587,7 @@ async def run_orchestrated_agent(state: AgentState) -> AgentState:
         # 3) Evaluator (small model)
         start = time.perf_counter()
         evaluator_llm = get_llm(role="small")  # type: ignore[call-arg]
-        schema_ok, schema_msg = _validate_plan_schema(plan)
+        schema_ok, schema_msg = _validate_plan_schema(plan, query_type=query_type)
         if not schema_ok:
             plan_feedback = f"Plan schema invalid: {schema_msg}"
             await _record_span_nonblocking(

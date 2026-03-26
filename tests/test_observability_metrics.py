@@ -171,7 +171,6 @@ async def test_retriever_records_embedding_and_rerank_latency(monkeypatch):
 
     async def fake_similarity_search(
         self,
-        session,
         query_vector,
         top_k,
         category,

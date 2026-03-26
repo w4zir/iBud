@@ -1,8 +1,8 @@
 ## Overview
 
-This document explains how to bring up the stack with Docker services, ingest the **WixQA** KB corpus into pgvector, seed mock orders, run the agentic backend API (Phases 3–4), use the Streamlit UI (Phase 5), and enable observability and evaluation (Phase 6).
+This document explains how to bring up the stack with Docker services, ingest the **WixQA** KB corpus into **Elasticsearch** (with Postgres kept for relational data), seed mock orders, run the agentic backend API, use the Streamlit UI, and enable observability and evaluation.
 
-The primary workflow uses Docker Compose for infrastructure (Postgres, Redis, Ollama, backend, frontend, Prometheus, Grafana) and a local Python virtual environment for management commands and tests.
+The primary workflow uses Docker Compose for infrastructure (Postgres, Redis, Elasticsearch, Ollama, backend, frontend, Prometheus, Grafana) and a local Python virtual environment for management commands and tests.
 
 ## Prerequisites
 
@@ -41,11 +41,23 @@ The primary workflow uses Docker Compose for infrastructure (Postgres, Redis, Ol
    - `POSTGRES_DB=ecom_support`
    - `POSTGRES_USER` / `POSTGRES_PASSWORD` as desired
 
-   For Phase 2 Redis-backed retrieval, also configure:
+For retrieval (Elasticsearch-backed) and caching (Redis-backed), also configure:
 
    - `REDIS_HOST=redis`
    - `REDIS_PORT=6379`
    - `REDIS_CACHE_TTL=300` (seconds)
+
+Elasticsearch + retrieval settings:
+- `ES_HOST=elasticsearch`
+- `ES_PORT=9200`
+- `ES_INDEX_NAME=ecom-support-documents`
+- `ES_RETRIEVAL_TOP_K=40` (candidate docs before reranking)
+- `RERANK_MODEL=cross-encoder/ms-marco-MiniLM-L-6-v2`
+- `RERANK_TOP_K=5`
+
+ModernBERT query classification (issue vs non-issue pipeline routing):
+- `CLASSIFIER_MODEL=MoritzLaurer/ModernBERT-base-zeroshot-v2.0`
+- `CLASSIFIER_THRESHOLD=0.7`
 
   **Backend structured logging:** Logs are emitted as JSON with stable fields (for example `request_id`, `session_id`, `user_id`, `intent`, `tool_name`, `status`, `latency_ms`, `error_type`). Set `DEBUG=true` in `.env` for debug-level events; default is `false` (INFO level) for normal runs.
 
@@ -60,16 +72,16 @@ The primary workflow uses Docker Compose for infrastructure (Postgres, Redis, Ol
 
 You can start different slices of the system depending on what you are working on.
 
-### 2.1 Core data infra only (Postgres + Redis)
+### 2.1 Core data infra only (Postgres + Redis + Elasticsearch)
 
 ```powershell
-docker compose up -d postgres redis
+docker compose up -d postgres redis elasticsearch
 ```
 
 ### 2.2 Backend API only (requires data infra + Ollama)
 
 ```powershell
-docker compose up -d postgres redis ollama backend
+docker compose up -d postgres redis elasticsearch ollama backend
 ```
 
 Backend API will be available at `http://localhost:8000`.
@@ -85,13 +97,13 @@ Streamlit UI will be available at `http://localhost:8501`.
 ### 2.4 Full stack (backend + frontend + infra)
 
 ```powershell
-docker compose up -d postgres redis ollama backend frontend
+docker compose up -d postgres redis elasticsearch ollama backend frontend
 ```
 
 ### 2.5 Full stack with observability
 
 ```powershell
-docker compose up -d postgres redis ollama backend frontend prometheus grafana alertmanager
+docker compose up -d postgres redis elasticsearch ollama backend frontend prometheus grafana alertmanager
 ```
 
 Verify services:
@@ -100,7 +112,7 @@ Verify services:
 docker compose ps
 ```
 
-You should see at least `postgres`, `redis`, `ollama`, `backend`, and `frontend` in `Up` state; for observability, also `prometheus`, `grafana`, and `alertmanager`.
+You should see at least `postgres`, `redis`, `elasticsearch`, `ollama`, `backend`, and `frontend` in `Up` state; for observability, also `prometheus`, `grafana`, and `alertmanager`.
 
 ## 3. Prepare Ollama models (for embeddings)
 
@@ -122,7 +134,20 @@ The runtime uses role-based model selection:
 
 You can override these in `.env` as needed.
 
-## 3.2 External human handoff integration (optional)
+## 3.3 Query classification routing (ModernBERT)
+
+Before the planner runs, the backend uses a ModernBERT zero-shot classifier to
+route the query into one of two pipelines:
+
+- `issue` pipeline: allows order/return tools in addition to KB search
+- `non_issue` pipeline: restricts tools to KB/FAQ search only
+
+Configure via:
+
+- `CLASSIFIER_MODEL` (default `MoritzLaurer/ModernBERT-base-zeroshot-v2.0`)
+- `CLASSIFIER_THRESHOLD` (default `0.7`)
+
+## 3.4 External human handoff integration (optional)
 
 To enable external human escalation calls (in addition to creating a local DB ticket), set:
 
@@ -130,7 +155,7 @@ To enable external human escalation calls (in addition to creating a local DB ti
 - (optional) `HUMAN_HANDOFF_API_KEY=<token>`
 - (optional) `HUMAN_HANDOFF_TIMEOUT_SECONDS=5`
 
-## 4. Ingest knowledge-base datasets into pgvector
+## 4. Ingest knowledge-base datasets into Elasticsearch
 
 Run the **WixQA** ingestion pipeline inside the backend container:
 
@@ -138,13 +163,15 @@ Run the **WixQA** ingestion pipeline inside the backend container:
 docker compose exec -T backend python -m backend.rag.ingest_wixqa
 ```
 
-This:
+This now performs a dual-write:
 
 - Loads the HuggingFace dataset `Wix/WixQA` (config `wix_kb_corpus`)
 - Extracts article fields (`id`, `url`, `contents`, `article_type`)
 - Chunks with section-aware and parent-document logic (chunk size ~400 tokens, overlap 50)
 - Embeds child chunks (Ollama `nomic-embed-text`, 768-dim by default)
-- Inserts parent and child rows into `documents` with `source="wixqa"`, `doc_tier=1`
+- Inserts parent/child rows into Postgres `documents` for relational needs
+- Indexes parent/child content + embeddings into Elasticsearch for retrieval
+- Uses `source="wixqa"` and `doc_tier=1` consistently across both stores
 
 On success you’ll see a line like:
 
@@ -163,7 +190,8 @@ This:
 
 - Loads the HuggingFace dataset `bitext/Bitext-customer-support-llm-chatbot-training-dataset`
 - Builds a support record per row from `instruction` + `response`
-- Embeds each record and inserts rows into `documents` with `source="bitext"`, `doc_tier=1`
+- Embeds each record and inserts rows into Postgres `documents` with `source="bitext"`, `doc_tier=1`
+- Indexes those records into Elasticsearch (`ES_INDEX_NAME`) for retrieval
 
 ## 5. Seed mock orders
 
@@ -195,7 +223,7 @@ This runs fast unit tests only (integration tests are deselected by default via 
 
 ### 6.2 Integration tests (require running services)
 
-After starting Postgres/Redis and performing ingestion and seeding:
+After starting Postgres/Redis/Elasticsearch and performing ingestion and seeding:
 
 ```powershell
 .\venv\Scripts\python -m pytest -m integration
@@ -234,7 +262,7 @@ To enable LangSmith traces for every agent run, set in `.env`:
 - `LANGCHAIN_API_KEY=ls__...`
 - `LANGCHAIN_PROJECT=ecom-support-rag`
 
-With these set, `backend/agent/graph.py` attaches metadata and tags per run so traces appear in the LangSmith UI.
+With these set, `backend/observability/langsmith_tracer.py` attaches metadata and tags per run (including a `chat_request` parent span) so traces appear in the LangSmith UI.
 
 ### 7.3 RAGAS evaluation
 

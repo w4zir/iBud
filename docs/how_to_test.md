@@ -47,7 +47,8 @@ Run all unit tests (integration tests are excluded by default via `pytest.ini`):
 Integration tests are marked with `@pytest.mark.integration` and assume:
 
 - Postgres and Redis are running
-- WixQA corpus is ingested into pgvector
+- Elasticsearch is running
+- WixQA corpus is ingested into Elasticsearch (with Postgres kept for relational data)
 
 Examples include:
 
@@ -112,6 +113,10 @@ In addition to automated checks, you can manually validate key user journeys onc
    - Ask an order-related question (e.g. “What is the status of my order?”).
    - Ask a return-related question (e.g. “Can I return my last order?”).
    - Ask a product or policy question (e.g. “What is your return policy?”).
+   
+   Note: the backend uses a ModernBERT classifier to route into either:
+   - `issue` pipeline (order/return tools enabled)
+   - `non_issue` pipeline (KB/FAQ search only)
 5. Observe:
    - Assistant responses appear under your messages.
    - When applicable, a “Tools used” line indicates which tools were called.
