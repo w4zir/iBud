@@ -1,3 +1,34 @@
+## Table of contents
+
+- [Testing Guide](#testing-guide)
+- [1. Prerequisites](#1-prerequisites)
+- [2. Unit tests (fast feedback)](#2-unit-tests-fast-feedback)
+- [3. Integration tests (live data)](#3-integration-tests-live-data)
+- [4. API-level use-case tests](#4-api-level-use-case-tests)
+  - [4.1 Foodpanda API integration tests](#41-foodpanda-api-integration-tests)
+- [5. Manual end-to-end scenarios](#5-manual-end-to-end-scenarios)
+  - [5.1 Chat via Streamlit UI](#51-chat-via-streamlit-ui)
+  - [5.2 Chat via HTTP API](#52-chat-via-http-api)
+  - [5.3 Inspect session history](#53-inspect-session-history)
+- [6. Observability checks](#6-observability-checks)
+  - [6.1 Prometheus metrics](#61-prometheus-metrics)
+  - [6.2 Grafana dashboard](#62-grafana-dashboard)
+  - [6.3 LangSmith traces](#63-langsmith-traces)
+  - [6.4 OTel tracing verification](#64-otel-tracing-verification)
+- [7. RAG quality evaluation (RAGAS)](#7-rag-quality-evaluation-ragas)
+  - [7.1 WixQA evaluation](#71-wixqa-evaluation)
+  - [7.2 Bitext evaluation](#72-bitext-evaluation)
+  - [7.3 Evaluation result JSON schema](#73-evaluation-result-json-schema)
+- [8. Intent classification evaluation (Bitext)](#8-intent-classification-evaluation-bitext)
+  - [8.1 Run Bitext intent evaluation](#81-run-bitext-intent-evaluation)
+  - [8.2 Regenerate summaries from Postgres](#82-regenerate-summaries-from-postgres)
+  - [8.3 Example SQL queries](#83-example-sql-queries)
+- [9. Troubleshooting](#9-troubleshooting)
+- [10. Alerting and SLO tests (Phase 10)](#10-alerting-and-slo-tests-phase-10)
+- [11. Remediation tests (Phase 11)](#11-remediation-tests-phase-11)
+
+---
+
 ## Testing Guide
 
 This document describes how to test the system across different layers:

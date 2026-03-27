@@ -1,3 +1,38 @@
+## Table of contents
+
+- [Overview](#overview)
+- [Prerequisites](#prerequisites)
+- [1. Environment setup](#1-environment-setup)
+- [2. Start Docker services](#2-start-docker-services)
+  - [2.1 Core data infra only (Postgres + Redis + Elasticsearch)](#21-core-data-infra-only-postgres--redis--elasticsearch)
+  - [2.2 Backend API only (requires data infra + Ollama)](#22-backend-api-only-requires-data-infra--ollama)
+  - [2.3 Frontend only (requires backend)](#23-frontend-only-requires-backend)
+  - [2.4 Full stack (backend + frontend + infra)](#24-full-stack-backend--frontend--infra)
+  - [2.5 Full stack with observability](#25-full-stack-with-observability)
+- [3. Prepare Ollama models (for embeddings)](#3-prepare-ollama-models-for-embeddings)
+- [3.1 Agent model routing (runtime)](#31-agent-model-routing-runtime)
+- [3.3 Query classification routing (ModernBERT)](#33-query-classification-routing-modernbert)
+- [3.4 External human handoff integration (optional)](#34-external-human-handoff-integration-optional)
+- [4. Ingest knowledge-base datasets into Elasticsearch](#4-ingest-knowledge-base-datasets-into-elasticsearch)
+- [5. Seed mock orders](#5-seed-mock-orders)
+- [6. Run automated tests](#6-run-automated-tests)
+  - [6.1 Unit / fast tests (default)](#61-unit--fast-tests-default)
+  - [6.2 Integration tests (require running services)](#62-integration-tests-require-running-services)
+  - [6.3 API-level use-case tests](#63-api-level-use-case-tests)
+- [7. Observability & evaluation](#7-observability--evaluation)
+  - [7.1 Prometheus & Grafana](#71-prometheus--grafana)
+  - [7.2 LangSmith tracing](#72-langsmith-tracing)
+  - [7.3 RAGAS evaluation](#73-ragas-evaluation)
+  - [7.4 Database & warehouse migrations (Phases 5-6+)](#74-database--warehouse-migrations-phases-5-6)
+  - [7.5 Asynchronous evaluation pipeline](#75-asynchronous-evaluation-pipeline)
+  - [7.6 OpenTelemetry collector (Phase 8)](#76-opentelemetry-collector-phase-8)
+  - [7.7 Audience dashboards (Phase 9)](#77-audience-dashboards-phase-9)
+  - [7.8 Alerting and SLO setup (Phase 10)](#78-alerting-and-slo-setup-phase-10)
+  - [7.9 Self-healing remediation endpoints (Phase 11)](#79-self-healing-remediation-endpoints-phase-11)
+- [8. Quick verification checklist](#8-quick-verification-checklist)
+
+---
+
 ## Overview
 
 This document explains how to bring up the stack with Docker services, ingest the **WixQA** KB corpus into **Elasticsearch** (with Postgres kept for relational data), seed mock orders, run the agentic backend API, use the Streamlit UI, and enable observability and evaluation.

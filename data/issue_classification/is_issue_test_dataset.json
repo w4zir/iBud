@@ -1,0 +1,1002 @@
+[
+  {
+    "id": 1,
+    "ai_turn": "Here's how you reset your password: go to the login page, click 'Forgot password', enter your email, and follow the link sent to you. Was that helpful?",
+    "user_turn": "Thanks, that worked!",
+    "is_issue": false,
+    "feedback_type": "positive",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "Explicit positive confirmation, issue resolved"
+  },
+  {
+    "id": 2,
+    "ai_turn": "To cancel your subscription, go to Account Settings > Billing > Cancel Plan. Is that what you were looking for?",
+    "user_turn": "No that's not what I need. I want to pause it, not cancel.",
+    "is_issue": true,
+    "feedback_type": "negative",
+    "has_follow_up_question": true,
+    "has_ended_conversation": false,
+    "notes": "Negative feedback + follow-up intent, issue still active"
+  },
+  {
+    "id": 3,
+    "ai_turn": "Your refund of $49.99 has been processed and should appear in 3-5 business days. Is there anything else I can help you with?",
+    "user_turn": "No, thanks. That's all I needed.",
+    "is_issue": false,
+    "feedback_type": "null",
+    "has_follow_up_question": false,
+    "has_ended_conversation": true,
+    "notes": "User ends conversation gracefully, no residual issue"
+  },
+  {
+    "id": 4,
+    "ai_turn": "I can see your order #8821 is currently in transit and estimated to arrive by Thursday. Did that answer your question?",
+    "user_turn": "It still hasn't arrived and it's already Friday.",
+    "is_issue": true,
+    "feedback_type": "negative",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "Implicit negative feedback, problem persists"
+  },
+  {
+    "id": 5,
+    "ai_turn": "To add a team member, go to Settings > Team > Invite. Enter their email and choose their role. Was that helpful?",
+    "user_turn": "Yes, got it. Thank you!",
+    "is_issue": false,
+    "feedback_type": "positive",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "Clear positive, resolved"
+  },
+  {
+    "id": 6,
+    "ai_turn": "I've updated your billing address to the one you provided. Is there anything else you need?",
+    "user_turn": "Actually yes — can you also update my email address?",
+    "is_issue": true,
+    "feedback_type": "null",
+    "has_follow_up_question": true,
+    "has_ended_conversation": false,
+    "notes": "No feedback on the billing task, new request raised"
+  },
+  {
+    "id": 7,
+    "ai_turn": "Our Pro plan includes unlimited projects, priority support, and team collaboration features. Does this answer your question?",
+    "user_turn": "Kind of. But what's the difference between Pro and Enterprise?",
+    "is_issue": true,
+    "feedback_type": "null",
+    "has_follow_up_question": true,
+    "has_ended_conversation": false,
+    "notes": "Partial answer, user still has a question"
+  },
+  {
+    "id": 8,
+    "ai_turn": "To export your data, navigate to Settings > Data > Export and select the format you need. Did that help?",
+    "user_turn": "Perfect, exactly what I was looking for.",
+    "is_issue": false,
+    "feedback_type": "positive",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "Resolved"
+  },
+  {
+    "id": 9,
+    "ai_turn": "I'm sorry to hear you're having trouble logging in. I've sent a verification code to your registered email. Did that resolve your issue?",
+    "user_turn": "I never received the code.",
+    "is_issue": true,
+    "feedback_type": "negative",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "Verification step failed, issue ongoing"
+  },
+  {
+    "id": 10,
+    "ai_turn": "You can connect your Slack workspace under Integrations > Slack > Connect. Was that helpful?",
+    "user_turn": "Yes thanks!",
+    "is_issue": false,
+    "feedback_type": "positive",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "Positive, resolved"
+  },
+  {
+    "id": 11,
+    "ai_turn": "Your account has been upgraded to Premium. You now have access to all premium features. Is there anything else I can assist with?",
+    "user_turn": "Great, bye.",
+    "is_issue": false,
+    "feedback_type": "null",
+    "has_follow_up_question": false,
+    "has_ended_conversation": true,
+    "notes": "User ends conversation positively"
+  },
+  {
+    "id": 12,
+    "ai_turn": "Unfortunately I wasn't able to find any pending invoice for your account. Could you double-check the invoice number?",
+    "user_turn": "The invoice number is INV-4490. I need this urgently.",
+    "is_issue": true,
+    "feedback_type": "null",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "User provides clarification, issue still unresolved"
+  },
+  {
+    "id": 13,
+    "ai_turn": "I can see there are two seats remaining on your current plan. Would you like to upgrade to add more seats?",
+    "user_turn": "No I want to know how to remove a seat, not add one.",
+    "is_issue": true,
+    "feedback_type": "negative",
+    "has_follow_up_question": true,
+    "has_ended_conversation": false,
+    "notes": "Misunderstood intent, user restates issue"
+  },
+  {
+    "id": 14,
+    "ai_turn": "Your two-factor authentication has been successfully disabled. Is there anything else you need help with?",
+    "user_turn": "Nope, that's it. Thanks!",
+    "is_issue": false,
+    "feedback_type": "positive",
+    "has_follow_up_question": false,
+    "has_ended_conversation": true,
+    "notes": "Resolved and conversation ended"
+  },
+  {
+    "id": 15,
+    "ai_turn": "You can find your API key under Developer Settings > API Keys. Did that answer your question?",
+    "user_turn": "I see the section but there's no option to generate a new key.",
+    "is_issue": true,
+    "feedback_type": "negative",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "User followed instruction but encountered a blocker"
+  },
+  {
+    "id": 16,
+    "ai_turn": "I've escalated your issue to our billing team. They'll reach out within 24 hours. Is that okay with you?",
+    "user_turn": "Ok.",
+    "is_issue": true,
+    "feedback_type": "null",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "Ambiguous 'Ok' refers to escalation acceptance, issue not resolved yet"
+  },
+  {
+    "id": 17,
+    "ai_turn": "Our system shows your payment was declined due to insufficient funds. Was that the information you needed?",
+    "user_turn": "That's weird, my card has plenty of funds. Something is wrong.",
+    "is_issue": true,
+    "feedback_type": "negative",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "Customer disputes system info, issue escalated"
+  },
+  {
+    "id": 18,
+    "ai_turn": "To change your notification settings, go to Profile > Notifications and toggle the options you prefer. Did that help?",
+    "user_turn": "Yes, done. Very easy.",
+    "is_issue": false,
+    "feedback_type": "positive",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "Quick resolution confirmed"
+  },
+  {
+    "id": 19,
+    "ai_turn": "I'm glad I could help! Is there anything else you need?",
+    "user_turn": "No that's everything for now, thank you.",
+    "is_issue": false,
+    "feedback_type": "null",
+    "has_follow_up_question": false,
+    "has_ended_conversation": true,
+    "notes": "Polite close, conversation ends"
+  },
+  {
+    "id": 20,
+    "ai_turn": "You can upgrade your plan anytime by visiting Billing > Plans. Would you like a link?",
+    "user_turn": "I already tried that but the upgrade button is greyed out.",
+    "is_issue": true,
+    "feedback_type": "negative",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "Known path failed, technical issue present"
+  },
+  {
+    "id": 21,
+    "ai_turn": "Your ticket has been submitted and you'll receive a confirmation email shortly. Is there anything else?",
+    "user_turn": "ok thanks",
+    "is_issue": false,
+    "feedback_type": "positive",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "Informal positive acknowledgement"
+  },
+  {
+    "id": 22,
+    "ai_turn": "I've looked up your account and I can see the charge of $29 on March 5th. Does that match what you're seeing?",
+    "user_turn": "No, the charge I'm asking about is from March 12th, not March 5th.",
+    "is_issue": true,
+    "feedback_type": "negative",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "Wrong data retrieved, issue persists"
+  },
+  {
+    "id": 23,
+    "ai_turn": "To connect your custom domain, go to Settings > Domains > Add Domain and follow the DNS instructions. Was this helpful?",
+    "user_turn": "Sort of. What do I do if my DNS records take more than 48 hours to propagate?",
+    "is_issue": true,
+    "feedback_type": "null",
+    "has_follow_up_question": true,
+    "has_ended_conversation": false,
+    "notes": "Edge case follow-up, task not fully complete yet"
+  },
+  {
+    "id": 24,
+    "ai_turn": "I've successfully reset your PIN. Please use the temporary PIN sent to your phone. Did that resolve your issue?",
+    "user_turn": "Yes! That's exactly what I needed.",
+    "is_issue": false,
+    "feedback_type": "positive",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "Clear positive resolution"
+  },
+  {
+    "id": 25,
+    "ai_turn": "Your account doesn't currently have admin privileges. Would you like me to guide you on how to request admin access?",
+    "user_turn": "But I'm the account owner. Why don't I have admin access?",
+    "is_issue": true,
+    "feedback_type": "negative",
+    "has_follow_up_question": true,
+    "has_ended_conversation": false,
+    "notes": "Surprising permissions issue, user frustrated"
+  },
+  {
+    "id": 26,
+    "ai_turn": "The integration guide for Zapier is available in our Help Center at docs.example.com/zapier. Was that what you needed?",
+    "user_turn": "yes thx",
+    "is_issue": false,
+    "feedback_type": "positive",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "Short informal positive"
+  },
+  {
+    "id": 27,
+    "ai_turn": "I can see your last payment was declined. Would you like to update your payment method?",
+    "user_turn": "Yes please, how do I do that?",
+    "is_issue": true,
+    "feedback_type": "null",
+    "has_follow_up_question": true,
+    "has_ended_conversation": false,
+    "notes": "User accepts offer but still needs guidance"
+  },
+  {
+    "id": 28,
+    "ai_turn": "To bulk delete records, select them using the checkbox and click the 'Delete Selected' button at the top. Does that help?",
+    "user_turn": "There's no checkbox in my view. I might be on an older version?",
+    "is_issue": true,
+    "feedback_type": "negative",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "Feature mismatch, version issue suspected"
+  },
+  {
+    "id": 29,
+    "ai_turn": "Your data export is ready and has been sent to your email. Is there anything else you need?",
+    "user_turn": "All good, thanks.",
+    "is_issue": false,
+    "feedback_type": "positive",
+    "has_follow_up_question": false,
+    "has_ended_conversation": true,
+    "notes": "Positive close"
+  },
+  {
+    "id": 30,
+    "ai_turn": "Unfortunately, we don't support direct bank transfers at this time. Would you like to explore other payment options?",
+    "user_turn": "That's really disappointing. I need bank transfer specifically.",
+    "is_issue": true,
+    "feedback_type": "negative",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "Feature gap, user not satisfied"
+  },
+  {
+    "id": 31,
+    "ai_turn": "Here's a link to our terms of service: example.com/terms. Was that what you were looking for?",
+    "user_turn": "Yes thanks!",
+    "is_issue": false,
+    "feedback_type": "positive",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "Simple information lookup resolved"
+  },
+  {
+    "id": 32,
+    "ai_turn": "The error you're seeing usually occurs when browser cookies are disabled. Try enabling them and refreshing the page. Did that fix it?",
+    "user_turn": "I tried that. Still seeing the same error.",
+    "is_issue": true,
+    "feedback_type": "negative",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "Suggested fix didn't work, issue ongoing"
+  },
+  {
+    "id": 33,
+    "ai_turn": "Your subscription will renew on April 15th. Is there anything else you'd like to know?",
+    "user_turn": "Yes, can I change the renewal date?",
+    "is_issue": true,
+    "feedback_type": "null",
+    "has_follow_up_question": true,
+    "has_ended_conversation": false,
+    "notes": "New question raised on same topic"
+  },
+  {
+    "id": 34,
+    "ai_turn": "Your password has been changed successfully. Please log in with your new password. Was that helpful?",
+    "user_turn": "👍",
+    "is_issue": false,
+    "feedback_type": "positive",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "Emoji as positive feedback"
+  },
+  {
+    "id": 35,
+    "ai_turn": "I've applied the discount code SAVE20 to your cart. Your total is now $79.99. Does that look right?",
+    "user_turn": "Actually, I wanted to use SUMMER30, not SAVE20.",
+    "is_issue": true,
+    "feedback_type": "negative",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "Wrong action taken, correction needed"
+  },
+  {
+    "id": 36,
+    "ai_turn": "I can see that your account was charged twice for March. I'll escalate this to our billing team right away. Will that work for you?",
+    "user_turn": "Yes please, I've been waiting for this to be fixed.",
+    "is_issue": true,
+    "feedback_type": "null",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "Escalation accepted but issue not yet resolved"
+  },
+  {
+    "id": 37,
+    "ai_turn": "Your free trial expires in 3 days. Would you like to upgrade to a paid plan to continue using the service?",
+    "user_turn": "No thanks, I'll just stop using it.",
+    "is_issue": false,
+    "feedback_type": "null",
+    "has_follow_up_question": false,
+    "has_ended_conversation": true,
+    "notes": "User explicitly ends engagement, no unresolved issue"
+  },
+  {
+    "id": 38,
+    "ai_turn": "The file upload limit on the Basic plan is 10 MB. Would that work for your needs?",
+    "user_turn": "No, I need to upload files of around 50 MB. Is there a way?",
+    "is_issue": true,
+    "feedback_type": "negative",
+    "has_follow_up_question": true,
+    "has_ended_conversation": false,
+    "notes": "Plan limitation creates active issue"
+  },
+  {
+    "id": 39,
+    "ai_turn": "I've sent a link to your email to verify your new email address. Did that go through okay?",
+    "user_turn": "Got it. Thanks!",
+    "is_issue": false,
+    "feedback_type": "positive",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "Confirmed receipt, resolved"
+  },
+  {
+    "id": 40,
+    "ai_turn": "Here are the steps to configure SSO for your organization: [step 1, step 2, step 3]. Was that clear?",
+    "user_turn": "Step 3 isn't making sense to me. What does 'Entity ID' mean here?",
+    "is_issue": true,
+    "feedback_type": "null",
+    "has_follow_up_question": true,
+    "has_ended_conversation": false,
+    "notes": "Partial understanding, follow-up needed"
+  },
+  {
+    "id": 41,
+    "ai_turn": "Your account has been permanently deleted as requested. Is there anything else I can help with?",
+    "user_turn": "No, that's all. Goodbye.",
+    "is_issue": false,
+    "feedback_type": "null",
+    "has_follow_up_question": false,
+    "has_ended_conversation": true,
+    "notes": "Action completed, conversation ends"
+  },
+  {
+    "id": 42,
+    "ai_turn": "I'm unable to process refunds directly, but I can connect you with our billing team. Would you like me to do that?",
+    "user_turn": "Yes, please connect me.",
+    "is_issue": true,
+    "feedback_type": "null",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "User accepts escalation, issue not yet resolved"
+  },
+  {
+    "id": 43,
+    "ai_turn": "You can check your usage stats under Analytics > Overview. Did that answer your question?",
+    "user_turn": "Yep, found it. Thanks.",
+    "is_issue": false,
+    "feedback_type": "positive",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "Resolved"
+  },
+  {
+    "id": 44,
+    "ai_turn": "Your invoice is available for download in the Billing section under 'Invoice History'. Was that helpful?",
+    "user_turn": "There's no 'Invoice History' section in my account.",
+    "is_issue": true,
+    "feedback_type": "negative",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "UI element not found, issue ongoing"
+  },
+  {
+    "id": 45,
+    "ai_turn": "To remove a project, click the three-dot menu next to the project name and select 'Archive'. Does that work for you?",
+    "user_turn": "I want to delete it permanently, not archive it. Is that possible?",
+    "is_issue": true,
+    "feedback_type": "negative",
+    "has_follow_up_question": true,
+    "has_ended_conversation": false,
+    "notes": "Wrong action offered, user clarifies intent"
+  },
+  {
+    "id": 46,
+    "ai_turn": "I've updated your notification preferences. You'll now only receive weekly digest emails. Is that correct?",
+    "user_turn": "Actually, I wanted daily digests, not weekly.",
+    "is_issue": true,
+    "feedback_type": "negative",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "Incorrect preference set, needs correction"
+  },
+  {
+    "id": 47,
+    "ai_turn": "Yes, we offer a 14-day free trial with no credit card required. Does that help?",
+    "user_turn": "Perfect, how do I get started?",
+    "is_issue": false,
+    "feedback_type": "positive",
+    "has_follow_up_question": true,
+    "has_ended_conversation": false,
+    "notes": "Positive but user wants to continue with next step"
+  },
+  {
+    "id": 48,
+    "ai_turn": "Our support hours are Monday to Friday, 9am–6pm EST. Is that all you needed?",
+    "user_turn": "yes that's fine thanks",
+    "is_issue": false,
+    "feedback_type": "positive",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "Simple info resolved"
+  },
+  {
+    "id": 49,
+    "ai_turn": "I found 3 open tickets on your account. Do any of them match what you're asking about?",
+    "user_turn": "None of those are related to my current issue.",
+    "is_issue": true,
+    "feedback_type": "negative",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "Tickets found don't match, new issue"
+  },
+  {
+    "id": 50,
+    "ai_turn": "Glad I could help! Is there anything else you need?",
+    "user_turn": "No, I'm good. Have a great day!",
+    "is_issue": false,
+    "feedback_type": "null",
+    "has_follow_up_question": false,
+    "has_ended_conversation": true,
+    "notes": "Friendly close, no issue"
+  },
+  {
+    "id": 51,
+    "ai_turn": "You can find our pricing page at example.com/pricing. Was that helpful?",
+    "user_turn": "I saw the pricing page but couldn't figure out the difference between the tiers.",
+    "is_issue": true,
+    "feedback_type": "negative",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "Page found but content not clear, issue ongoing"
+  },
+  {
+    "id": 52,
+    "ai_turn": "Your trial has been extended by 7 days as a courtesy. Is there anything else I can do for you?",
+    "user_turn": "Oh great, thank you so much!",
+    "is_issue": false,
+    "feedback_type": "positive",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "Positive, resolved"
+  },
+  {
+    "id": 53,
+    "ai_turn": "To generate a report, go to Reports > New Report and select the data range. Did that answer your question?",
+    "user_turn": "yes",
+    "is_issue": false,
+    "feedback_type": "positive",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "Short affirmative"
+  },
+  {
+    "id": 54,
+    "ai_turn": "I understand you'd like a refund for your last charge. Unfortunately, refunds are only available within 7 days of billing. Your billing was 12 days ago. Was that the information you needed?",
+    "user_turn": "That's frustrating. I wasn't informed about this policy.",
+    "is_issue": true,
+    "feedback_type": "negative",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "Policy constraint not accepted, user still dissatisfied"
+  },
+  {
+    "id": 55,
+    "ai_turn": "You can set a custom domain by going to Settings > Custom Domain and entering your domain URL. Did that help?",
+    "user_turn": "Yes, working on it now. Cheers.",
+    "is_issue": false,
+    "feedback_type": "positive",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "User actively implementing the fix"
+  },
+  {
+    "id": 56,
+    "ai_turn": "Looks like your account is under review by our trust and safety team. This can take 24–48 hours. Is there anything else I can help with?",
+    "user_turn": "Can you speed it up? It's urgent.",
+    "is_issue": true,
+    "feedback_type": "null",
+    "has_follow_up_question": true,
+    "has_ended_conversation": false,
+    "notes": "Issue acknowledged but user needs faster resolution"
+  },
+  {
+    "id": 57,
+    "ai_turn": "Your app is now connected to the analytics dashboard. You can view your data in real time. Was that what you needed?",
+    "user_turn": "Exactly. All sorted now!",
+    "is_issue": false,
+    "feedback_type": "positive",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "Explicit positive close"
+  },
+  {
+    "id": 58,
+    "ai_turn": "The webhook events you're looking for are listed under Developers > Webhooks > Event Types. Did that help?",
+    "user_turn": "I see the list but I can't figure out which event fires on payment failure.",
+    "is_issue": true,
+    "feedback_type": "null",
+    "has_follow_up_question": true,
+    "has_ended_conversation": false,
+    "notes": "Partial help, technical follow-up needed"
+  },
+  {
+    "id": 59,
+    "ai_turn": "Your password reset link has been sent. Please check your spam folder if you don't see it in your inbox. Was that helpful?",
+    "user_turn": "Checked spam too, nothing there.",
+    "is_issue": true,
+    "feedback_type": "negative",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "Reset email not received, issue ongoing"
+  },
+  {
+    "id": 60,
+    "ai_turn": "I've added an extra month to your subscription for free as a goodwill gesture. Is that satisfactory?",
+    "user_turn": "Yes, that's very kind. Thank you.",
+    "is_issue": false,
+    "feedback_type": "positive",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "Resolved with compensation"
+  },
+  {
+    "id": 61,
+    "ai_turn": "Mobile app support is available on iOS 14 and above. Does your device meet this requirement?",
+    "user_turn": "I'm on iOS 13. Can I still use it?",
+    "is_issue": true,
+    "feedback_type": "null",
+    "has_follow_up_question": true,
+    "has_ended_conversation": false,
+    "notes": "Compatibility concern raised"
+  },
+  {
+    "id": 62,
+    "ai_turn": "You can download the mobile app from the App Store or Google Play. Did that help?",
+    "user_turn": "Great, downloading now.",
+    "is_issue": false,
+    "feedback_type": "positive",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "Positive action taken"
+  },
+  {
+    "id": 63,
+    "ai_turn": "Based on your usage, you're close to your storage limit. You can upgrade at any time. Is there anything else?",
+    "user_turn": "How much extra storage does upgrading give me?",
+    "is_issue": false,
+    "feedback_type": "null",
+    "has_follow_up_question": true,
+    "has_ended_conversation": false,
+    "notes": "Not a problem per se, just an info question"
+  },
+  {
+    "id": 64,
+    "ai_turn": "To recover a deleted file, go to Trash and click 'Restore'. Did that resolve your issue?",
+    "user_turn": "The trash is empty, my file isn't there.",
+    "is_issue": true,
+    "feedback_type": "negative",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "Recovery path failed, file may be permanently lost"
+  },
+  {
+    "id": 65,
+    "ai_turn": "I've sent the invoice to your registered email address. Does that work for you?",
+    "user_turn": "Yes perfect, got it.",
+    "is_issue": false,
+    "feedback_type": "positive",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "Confirmed receipt, resolved"
+  },
+  {
+    "id": 66,
+    "ai_turn": "Our API rate limit is 1000 requests per minute on the Growth plan. Is that what you needed to know?",
+    "user_turn": "That's too low. Is there a higher tier?",
+    "is_issue": true,
+    "feedback_type": "negative",
+    "has_follow_up_question": true,
+    "has_ended_conversation": false,
+    "notes": "Rate limit insufficient, user seeks upgrade path"
+  },
+  {
+    "id": 67,
+    "ai_turn": "You can set your timezone in Profile > Preferences > Timezone. Was that helpful?",
+    "user_turn": "yep, done!",
+    "is_issue": false,
+    "feedback_type": "positive",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "Quick positive"
+  },
+  {
+    "id": 68,
+    "ai_turn": "Unfortunately, we don't currently offer phone support. All support is handled via chat and email. Is there anything else I can help with?",
+    "user_turn": "That's a dealbreaker for me honestly.",
+    "is_issue": true,
+    "feedback_type": "negative",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "Dissatisfied with support channel, may churn"
+  },
+  {
+    "id": 69,
+    "ai_turn": "I can see you have a team of 5 members. You're currently using 4 of your 5 included seats. Does that match what you expected?",
+    "user_turn": "Yes, that's what I thought. Thanks for confirming.",
+    "is_issue": false,
+    "feedback_type": "positive",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "Confirmation requested and given"
+  },
+  {
+    "id": 70,
+    "ai_turn": "Here's how you set up automated email sequences: [instructions]. Was that helpful?",
+    "user_turn": "I followed the steps but the emails aren't sending.",
+    "is_issue": true,
+    "feedback_type": "negative",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "Setup done but feature not functioning"
+  },
+  {
+    "id": 71,
+    "ai_turn": "I've logged your feedback for our product team. Thank you for letting us know! Is there anything else?",
+    "user_turn": "No, just wanted to flag it. Thanks.",
+    "is_issue": false,
+    "feedback_type": "null",
+    "has_follow_up_question": false,
+    "has_ended_conversation": true,
+    "notes": "User submitted feedback, not a support issue"
+  },
+  {
+    "id": 72,
+    "ai_turn": "Your coupon code FIRST50 has been applied. You saved $50 on your order. Does everything look correct?",
+    "user_turn": "Yes, looks great!",
+    "is_issue": false,
+    "feedback_type": "positive",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "Transaction confirmed, positive"
+  },
+  {
+    "id": 73,
+    "ai_turn": "To reactivate your account, just log in and you'll see a prompt to reactivate. Did that work?",
+    "user_turn": "I logged in and I'm not seeing any reactivation prompt.",
+    "is_issue": true,
+    "feedback_type": "negative",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "Expected UI element missing"
+  },
+  {
+    "id": 74,
+    "ai_turn": "Your card ending in 4242 will be charged $99 on the 1st of each month. Does this look correct?",
+    "user_turn": "Yes that's right.",
+    "is_issue": false,
+    "feedback_type": "positive",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "User confirms billing info"
+  },
+  {
+    "id": 75,
+    "ai_turn": "SSO configuration requires an Enterprise plan. You're currently on Pro. Did that answer your question?",
+    "user_turn": "So I have to pay more just to get SSO? That seems like it should be included.",
+    "is_issue": true,
+    "feedback_type": "negative",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "User dissatisfied with plan restrictions"
+  },
+  {
+    "id": 76,
+    "ai_turn": "I've noted your request to be added to the beta program. You'll be notified when a spot opens up. Is there anything else?",
+    "user_turn": "No, that's fine. Thanks!",
+    "is_issue": false,
+    "feedback_type": "positive",
+    "has_follow_up_question": false,
+    "has_ended_conversation": true,
+    "notes": "Request logged and acknowledged"
+  },
+  {
+    "id": 77,
+    "ai_turn": "Your account is currently set to the Free tier. You can upgrade any time from the Billing page. Was that helpful?",
+    "user_turn": "I thought I was on a paid plan. I've been paying every month.",
+    "is_issue": true,
+    "feedback_type": "negative",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "Account status mismatch, billing concern"
+  },
+  {
+    "id": 78,
+    "ai_turn": "The bulk import feature supports CSV files up to 5MB. Did that answer your question?",
+    "user_turn": "Yes, my file is under 5MB so that works.",
+    "is_issue": false,
+    "feedback_type": "positive",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "Confirmed compatibility, resolved"
+  },
+  {
+    "id": 79,
+    "ai_turn": "I'm sorry, but I don't have access to your order history. You'll need to contact our logistics team. Would you like their contact details?",
+    "user_turn": "Sure, pass them on.",
+    "is_issue": true,
+    "feedback_type": "null",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "Handoff initiated, issue still open"
+  },
+  {
+    "id": 80,
+    "ai_turn": "Your session timed out due to inactivity. Please log back in to continue. Did that explain what happened?",
+    "user_turn": "Oh, that makes sense. I'll log back in now.",
+    "is_issue": false,
+    "feedback_type": "positive",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "User understands and accepts explanation"
+  },
+  {
+    "id": 81,
+    "ai_turn": "I can see your payment of $149 was processed on March 10th. Is that the transaction you were asking about?",
+    "user_turn": "No, I'm asking about a $49 charge on March 22nd.",
+    "is_issue": true,
+    "feedback_type": "negative",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "Wrong transaction identified"
+  },
+  {
+    "id": 82,
+    "ai_turn": "To share a dashboard, click the Share icon at the top right and enter the recipient's email. Was that helpful?",
+    "user_turn": "Got it, shared! Thanks.",
+    "is_issue": false,
+    "feedback_type": "positive",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "Action completed, positive"
+  },
+  {
+    "id": 83,
+    "ai_turn": "The backup process runs every 24 hours at midnight UTC. Does that answer your question?",
+    "user_turn": "What if I need to restore data from before the last backup?",
+    "is_issue": true,
+    "feedback_type": "null",
+    "has_follow_up_question": true,
+    "has_ended_conversation": false,
+    "notes": "New related question about edge case"
+  },
+  {
+    "id": 84,
+    "ai_turn": "Your account has been verified and is now fully active. Welcome aboard! Is there anything else I can help with?",
+    "user_turn": "Nope, excited to get started!",
+    "is_issue": false,
+    "feedback_type": "positive",
+    "has_follow_up_question": false,
+    "has_ended_conversation": true,
+    "notes": "Onboarding complete, positive close"
+  },
+  {
+    "id": 85,
+    "ai_turn": "Your discount was applied at checkout. The final amount charged was $35.99. Did that go through correctly?",
+    "user_turn": "The discount only showed $5 off, but it should be 20% off $59, which is about $11.80.",
+    "is_issue": true,
+    "feedback_type": "negative",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "Incorrect discount calculation, user disputes"
+  },
+  {
+    "id": 86,
+    "ai_turn": "The feature you're asking about is on our roadmap and expected to launch in Q3. Is there anything else?",
+    "user_turn": "ok thanks for letting me know",
+    "is_issue": false,
+    "feedback_type": "positive",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "User informed, accepts timeline"
+  },
+  {
+    "id": 87,
+    "ai_turn": "To embed a form, copy the code snippet from Forms > Embed and paste it into your website's HTML. Did that help?",
+    "user_turn": "I've embedded it but it's not appearing on my site.",
+    "is_issue": true,
+    "feedback_type": "negative",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "Embedding done but rendering issue"
+  },
+  {
+    "id": 88,
+    "ai_turn": "You can view all your connected apps under Settings > Integrations. Was that helpful?",
+    "user_turn": "Yes, found what I needed.",
+    "is_issue": false,
+    "feedback_type": "positive",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "Found info, resolved"
+  },
+  {
+    "id": 89,
+    "ai_turn": "I've created a support ticket for your issue. Our technical team will follow up within 2 business days. Is that okay?",
+    "user_turn": "2 days is too long. This is blocking our entire team.",
+    "is_issue": true,
+    "feedback_type": "negative",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "SLA not acceptable, urgency flagged"
+  },
+  {
+    "id": 90,
+    "ai_turn": "Your account password has been updated. You'll need to log in again on all devices. Was that what you wanted?",
+    "user_turn": "Yes! All sorted.",
+    "is_issue": false,
+    "feedback_type": "positive",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "Resolved"
+  },
+  {
+    "id": 91,
+    "ai_turn": "The GDPR data deletion request has been submitted. Processing takes up to 30 days per regulation. Is that acceptable?",
+    "user_turn": "Yes, understood. Thank you.",
+    "is_issue": false,
+    "feedback_type": "positive",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "User accepts regulatory timeline"
+  },
+  {
+    "id": 92,
+    "ai_turn": "To merge two accounts, you'll need to contact our support team directly as this can't be done self-service. Is there anything else?",
+    "user_turn": "Can't you just do it now? I've been going back and forth on this for a week.",
+    "is_issue": true,
+    "feedback_type": "negative",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "User frustrated by process limitation"
+  },
+  {
+    "id": 93,
+    "ai_turn": "I've resent the activation email. Please check your inbox within the next 5 minutes. Did you receive it?",
+    "user_turn": "Yes, got it this time!",
+    "is_issue": false,
+    "feedback_type": "positive",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "Second attempt succeeded"
+  },
+  {
+    "id": 94,
+    "ai_turn": "Your workspace is currently at 90% capacity. Would you like me to show you how to free up space?",
+    "user_turn": "Yes please, that would be great.",
+    "is_issue": false,
+    "feedback_type": "null",
+    "has_follow_up_question": true,
+    "has_ended_conversation": false,
+    "notes": "Proactive help, not yet a critical issue"
+  },
+  {
+    "id": 95,
+    "ai_turn": "To update your company logo, go to Settings > Branding > Logo Upload. Did that help?",
+    "user_turn": "I uploaded it but it looks blurry. What dimensions should I use?",
+    "is_issue": true,
+    "feedback_type": "null",
+    "has_follow_up_question": true,
+    "has_ended_conversation": false,
+    "notes": "Action done but quality issue arose"
+  },
+  {
+    "id": 96,
+    "ai_turn": "We've confirmed that your domain has been verified. You can now start sending emails. Was that all you needed?",
+    "user_turn": "Yes, thank you! Great service.",
+    "is_issue": false,
+    "feedback_type": "positive",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "Clear positive, resolved"
+  },
+  {
+    "id": 97,
+    "ai_turn": "I understand your login is blocked. To unlock it, you'll need to verify your identity via the email we sent. Did that work?",
+    "user_turn": "I can't access that email account anymore. That's the whole problem.",
+    "is_issue": true,
+    "feedback_type": "negative",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "Recovery path circular, deeper issue"
+  },
+  {
+    "id": 98,
+    "ai_turn": "All your data is encrypted at rest and in transit using AES-256. Was that the security information you needed?",
+    "user_turn": "Yes, that's exactly what I needed for our compliance docs.",
+    "is_issue": false,
+    "feedback_type": "positive",
+    "has_follow_up_question": false,
+    "has_ended_conversation": false,
+    "notes": "Info request fulfilled"
+  },
+  {
+    "id": 99,
+    "ai_turn": "We don't currently offer white-labeling on the Starter plan. It's available on Business and above. Did that answer your question?",
+    "user_turn": "Is there any way to get it as an add-on without upgrading the whole plan?",
+    "is_issue": true,
+    "feedback_type": "null",
+    "has_follow_up_question": true,
+    "has_ended_conversation": false,
+    "notes": "User probing for alternative, original need unmet"
+  },
+  {
+    "id": 100,
+    "ai_turn": "Glad I could help today. Don't hesitate to reach out if you need anything in the future. Is there anything else before we close?",
+    "user_turn": "No, that's everything. Thanks for your help!",
+    "is_issue": false,
+    "feedback_type": "null",
+    "has_follow_up_question": false,
+    "has_ended_conversation": true,
+    "notes": "Happy close, all resolved"
+  }
+]

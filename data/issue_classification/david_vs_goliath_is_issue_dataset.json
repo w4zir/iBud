@@ -1,0 +1,721 @@
+{
+  "metadata": {
+    "source_research": "David vs Goliath: are small LLMs any good? — fin.ai/research/david-vs-goliath-are-small-llms-any-good/",
+    "description": "100 user messages for is_issue binary classification. Labels mirror Intercom's ModernBERT issue classifier: true = addressable informational issue, false = non-informational. Non-issue examples cover all 17 categories defined in Table 1 of the paper.",
+    "total_samples": 100,
+    "is_issue_true": 50,
+    "is_issue_false": 50,
+    "non_issue_categories_covered": [
+      "Greetings", "Goodbyes", "Negative reactions (no new info)", "Acknowledgments",
+      "Gratitude", "Positive reactions", "Connection checks", "Pleasantries",
+      "Small talk", "Meta-commentary", "Bot identity questions",
+      "Fillers & expressions", "Testing", "Gibberish", "Thinking",
+      "Customer withdraws request", "Indicating a question without stating it"
+    ]
+  },
+  "samples": [
+
+    {
+      "id": 1,
+      "user_message": "Hi",
+      "is_issue": false,
+      "non_issue_category": "Greetings",
+      "notes": "Pure greeting, no issue stated"
+    },
+    {
+      "id": 2,
+      "user_message": "Hello there",
+      "is_issue": false,
+      "non_issue_category": "Greetings",
+      "notes": "Greeting only"
+    },
+    {
+      "id": 3,
+      "user_message": "Good morning",
+      "is_issue": false,
+      "non_issue_category": "Greetings",
+      "notes": "Greeting, no request"
+    },
+    {
+      "id": 4,
+      "user_message": "Hey!",
+      "is_issue": false,
+      "non_issue_category": "Greetings",
+      "notes": "Informal greeting"
+    },
+    {
+      "id": 5,
+      "user_message": "Bye, thanks again",
+      "is_issue": false,
+      "non_issue_category": "Goodbyes",
+      "notes": "Farewell, conversation closing"
+    },
+    {
+      "id": 6,
+      "user_message": "That's all, goodbye",
+      "is_issue": false,
+      "non_issue_category": "Goodbyes",
+      "notes": "Explicit conversation end"
+    },
+    {
+      "id": 7,
+      "user_message": "See you",
+      "is_issue": false,
+      "non_issue_category": "Goodbyes",
+      "notes": "Closing message"
+    },
+    {
+      "id": 8,
+      "user_message": "No",
+      "is_issue": false,
+      "non_issue_category": "Negative reactions (no new info)",
+      "notes": "Bare negative, no actionable detail"
+    },
+    {
+      "id": 9,
+      "user_message": "Not helpful at all",
+      "is_issue": false,
+      "non_issue_category": "Negative reactions (no new info)",
+      "notes": "Negative sentiment, no new information for retrieval"
+    },
+    {
+      "id": 10,
+      "user_message": "WTF",
+      "is_issue": false,
+      "non_issue_category": "Negative reactions (no new info)",
+      "notes": "Expressive frustration, no actionable issue content"
+    },
+    {
+      "id": 11,
+      "user_message": "Useless",
+      "is_issue": false,
+      "non_issue_category": "Negative reactions (no new info)",
+      "notes": "Negative reaction, nothing for RAG to act on"
+    },
+    {
+      "id": 12,
+      "user_message": "Ok",
+      "is_issue": false,
+      "non_issue_category": "Acknowledgments",
+      "notes": "Plain acknowledgment, no issue"
+    },
+    {
+      "id": 13,
+      "user_message": "Got it, understood",
+      "is_issue": false,
+      "non_issue_category": "Acknowledgments",
+      "notes": "User confirms receipt of info"
+    },
+    {
+      "id": 14,
+      "user_message": "Makes sense, thank you",
+      "is_issue": false,
+      "non_issue_category": "Acknowledgments",
+      "notes": "Acknowledges and thanks, no follow-up issue"
+    },
+    {
+      "id": 15,
+      "user_message": "Sure",
+      "is_issue": false,
+      "non_issue_category": "Acknowledgments",
+      "notes": "One-word acknowledgment"
+    },
+    {
+      "id": 16,
+      "user_message": "Thank you so much!",
+      "is_issue": false,
+      "non_issue_category": "Gratitude",
+      "notes": "Pure gratitude, no outstanding issue"
+    },
+    {
+      "id": 17,
+      "user_message": "Thanks, you're the best",
+      "is_issue": false,
+      "non_issue_category": "Gratitude",
+      "notes": "Positive close with gratitude"
+    },
+    {
+      "id": 18,
+      "user_message": "Thx",
+      "is_issue": false,
+      "non_issue_category": "Gratitude",
+      "notes": "Abbreviated thank-you"
+    },
+    {
+      "id": 19,
+      "user_message": "Perfect!",
+      "is_issue": false,
+      "non_issue_category": "Positive reactions",
+      "notes": "Positive feedback, issue resolved"
+    },
+    {
+      "id": 20,
+      "user_message": "Awesome, that worked",
+      "is_issue": false,
+      "non_issue_category": "Positive reactions",
+      "notes": "Confirms resolution positively"
+    },
+    {
+      "id": 21,
+      "user_message": "Great, exactly what I needed!",
+      "is_issue": false,
+      "non_issue_category": "Positive reactions",
+      "notes": "Satisfied, no new issue"
+    },
+    {
+      "id": 22,
+      "user_message": "Cool, got it",
+      "is_issue": false,
+      "non_issue_category": "Positive reactions",
+      "notes": "Casual positive confirmation"
+    },
+    {
+      "id": 23,
+      "user_message": "Are you there?",
+      "is_issue": false,
+      "non_issue_category": "Connection checks",
+      "notes": "User checking if agent is online, no issue"
+    },
+    {
+      "id": 24,
+      "user_message": "Is anyone there?",
+      "is_issue": false,
+      "non_issue_category": "Connection checks",
+      "notes": "Connection check only"
+    },
+    {
+      "id": 25,
+      "user_message": "Are you still online?",
+      "is_issue": false,
+      "non_issue_category": "Connection checks",
+      "notes": "Connectivity probe, no actual problem stated"
+    },
+    {
+      "id": 26,
+      "user_message": "How are you?",
+      "is_issue": false,
+      "non_issue_category": "Pleasantries",
+      "notes": "Social nicety, not a support issue"
+    },
+    {
+      "id": 27,
+      "user_message": "Nice to meet you",
+      "is_issue": false,
+      "non_issue_category": "Pleasantries",
+      "notes": "Pleasantry, no issue"
+    },
+    {
+      "id": 28,
+      "user_message": "Nice weather today",
+      "is_issue": false,
+      "non_issue_category": "Small talk",
+      "notes": "Off-topic small talk"
+    },
+    {
+      "id": 29,
+      "user_message": "Merry Christmas!",
+      "is_issue": false,
+      "non_issue_category": "Small talk",
+      "notes": "Seasonal greeting, no issue"
+    },
+    {
+      "id": 30,
+      "user_message": "Happy New Year",
+      "is_issue": false,
+      "non_issue_category": "Small talk",
+      "notes": "Social message unrelated to support"
+    },
+    {
+      "id": 31,
+      "user_message": "That's really interesting",
+      "is_issue": false,
+      "non_issue_category": "Meta-commentary",
+      "notes": "Commentary on the conversation, not a new issue"
+    },
+    {
+      "id": 32,
+      "user_message": "You answered that really fast!",
+      "is_issue": false,
+      "non_issue_category": "Meta-commentary",
+      "notes": "Comment about the agent's speed, not a request"
+    },
+    {
+      "id": 33,
+      "user_message": "Who are you?",
+      "is_issue": false,
+      "non_issue_category": "Bot identity questions",
+      "notes": "Identity question, not a product issue"
+    },
+    {
+      "id": 34,
+      "user_message": "Am I talking to a bot or a human?",
+      "is_issue": false,
+      "non_issue_category": "Bot identity questions",
+      "notes": "Bot identity check, no actionable issue"
+    },
+    {
+      "id": 35,
+      "user_message": "Are you an AI?",
+      "is_issue": false,
+      "non_issue_category": "Bot identity questions",
+      "notes": "Identity question"
+    },
+    {
+      "id": 36,
+      "user_message": "hmmm",
+      "is_issue": false,
+      "non_issue_category": "Fillers & expressions",
+      "notes": "Filler, no content"
+    },
+    {
+      "id": 37,
+      "user_message": "haha ok",
+      "is_issue": false,
+      "non_issue_category": "Fillers & expressions",
+      "notes": "Laughter filler, no issue"
+    },
+    {
+      "id": 38,
+      "user_message": "lol 😂",
+      "is_issue": false,
+      "non_issue_category": "Fillers & expressions",
+      "notes": "Emoji + filler only"
+    },
+    {
+      "id": 39,
+      "user_message": "test",
+      "is_issue": false,
+      "non_issue_category": "Testing",
+      "notes": "Connection or system test"
+    },
+    {
+      "id": 40,
+      "user_message": "testing 1 2 3",
+      "is_issue": false,
+      "non_issue_category": "Testing",
+      "notes": "Technical test, no issue"
+    },
+    {
+      "id": 41,
+      "user_message": "ping",
+      "is_issue": false,
+      "non_issue_category": "Testing",
+      "notes": "Ping probe, no issue"
+    },
+    {
+      "id": 42,
+      "user_message": "asldkjfasldkjf",
+      "is_issue": false,
+      "non_issue_category": "Gibberish",
+      "notes": "Random keystrokes, no parseable intent"
+    },
+    {
+      "id": 43,
+      "user_message": "aaa",
+      "is_issue": false,
+      "non_issue_category": "Gibberish",
+      "notes": "Gibberish"
+    },
+    {
+      "id": 44,
+      "user_message": "...",
+      "is_issue": false,
+      "non_issue_category": "Gibberish",
+      "notes": "Ellipsis only, no content"
+    },
+    {
+      "id": 45,
+      "user_message": "Let me think about it for a second",
+      "is_issue": false,
+      "non_issue_category": "Thinking",
+      "notes": "User pausing, no new issue"
+    },
+    {
+      "id": 46,
+      "user_message": "brb",
+      "is_issue": false,
+      "non_issue_category": "Thinking",
+      "notes": "Be right back, conversation paused"
+    },
+    {
+      "id": 47,
+      "user_message": "Never mind, ignore that last message",
+      "is_issue": false,
+      "non_issue_category": "Customer withdraws request",
+      "notes": "Request explicitly withdrawn"
+    },
+    {
+      "id": 48,
+      "user_message": "Don't worry about it, I figured it out myself",
+      "is_issue": false,
+      "non_issue_category": "Customer withdraws request",
+      "notes": "User self-resolved, withdraws"
+    },
+    {
+      "id": 49,
+      "user_message": "I have a question",
+      "is_issue": false,
+      "non_issue_category": "Indicating a question without stating it",
+      "notes": "Intent announced but no actual question given yet"
+    },
+    {
+      "id": 50,
+      "user_message": "Wait, I have something else to ask",
+      "is_issue": false,
+      "non_issue_category": "Indicating a question without stating it",
+      "notes": "Signals upcoming question, no issue content yet"
+    },
+
+    {
+      "id": 51,
+      "user_message": "I can't log into my account. I've tried resetting my password twice but I still get an error saying my credentials are invalid.",
+      "is_issue": true,
+      "issue_summary": "User unable to log in despite multiple password resets; invalid credentials error persists",
+      "notes": "Clear actionable login issue with failure details"
+    },
+    {
+      "id": 52,
+      "user_message": "My payment was charged twice for the same order. I need a refund for the duplicate charge.",
+      "is_issue": true,
+      "issue_summary": "Duplicate charge on order, refund requested",
+      "notes": "Billing dispute with specific resolution ask"
+    },
+    {
+      "id": 53,
+      "user_message": "The export to CSV isn't working — I click the button and nothing happens.",
+      "is_issue": true,
+      "issue_summary": "CSV export button unresponsive",
+      "notes": "Broken UI feature with reproduction detail"
+    },
+    {
+      "id": 54,
+      "user_message": "I upgraded to the Pro plan yesterday but I still can't access the advanced analytics dashboard.",
+      "is_issue": true,
+      "issue_summary": "Pro plan features not unlocked after upgrade",
+      "notes": "Entitlement gap after billing event"
+    },
+    {
+      "id": 55,
+      "user_message": "How do I add a custom domain to my workspace?",
+      "is_issue": true,
+      "issue_summary": "User needs instructions for adding a custom domain",
+      "notes": "Informational question with clear actionable answer"
+    },
+    {
+      "id": 56,
+      "user_message": "I accidentally deleted a project — is there any way to recover it?",
+      "is_issue": true,
+      "issue_summary": "Deleted project recovery request",
+      "notes": "Data loss scenario with recovery intent"
+    },
+    {
+      "id": 57,
+      "user_message": "The mobile app keeps crashing every time I try to open the inbox on my iPhone 14.",
+      "is_issue": true,
+      "issue_summary": "Mobile app crash on inbox open (iPhone 14)",
+      "notes": "Device-specific crash with reproduction context"
+    },
+    {
+      "id": 58,
+      "user_message": "I need to cancel my subscription before the next billing cycle on the 15th. How do I do that?",
+      "is_issue": true,
+      "issue_summary": "User wants to cancel subscription before renewal date",
+      "notes": "Time-sensitive cancellation request"
+    },
+    {
+      "id": 59,
+      "user_message": "We're getting a 403 Forbidden error when calling the /messages endpoint with our API key.",
+      "is_issue": true,
+      "issue_summary": "API returning 403 on /messages endpoint",
+      "notes": "Technical API error with endpoint and error code"
+    },
+    {
+      "id": 60,
+      "user_message": "My team members are not receiving the invite emails I'm sending from the workspace settings.",
+      "is_issue": true,
+      "issue_summary": "Team invite emails not being delivered",
+      "notes": "Email delivery failure for onboarding flow"
+    },
+    {
+      "id": 61,
+      "user_message": "What's the difference between the Business and Enterprise plans?",
+      "is_issue": true,
+      "issue_summary": "User needs plan comparison information",
+      "notes": "Pre-purchase informational question, answerable"
+    },
+    {
+      "id": 62,
+      "user_message": "The webhook I set up is not firing when a new contact is created. I've checked the configuration and it looks correct.",
+      "is_issue": true,
+      "issue_summary": "Webhook not triggering on new contact creation despite correct config",
+      "notes": "Integration issue with debugging context"
+    },
+    {
+      "id": 63,
+      "user_message": "I've been waiting 48 hours for my account verification email and it hasn't arrived.",
+      "is_issue": true,
+      "issue_summary": "Account verification email not received after 48 hours",
+      "notes": "Delayed onboarding blocker"
+    },
+    {
+      "id": 64,
+      "user_message": "Can I use the same account on multiple devices at the same time?",
+      "is_issue": true,
+      "issue_summary": "Query about multi-device concurrent access policy",
+      "notes": "Clear informational question about product behavior"
+    },
+    {
+      "id": 65,
+      "user_message": "My reports are showing data from last month even though I selected 'This Week' as the date range.",
+      "is_issue": true,
+      "issue_summary": "Date range filter not working correctly in reports",
+      "notes": "UI bug with clear reproduction step"
+    },
+    {
+      "id": 66,
+      "user_message": "I'm trying to connect Salesforce but I keep getting an 'Authorization failed' error on step 3 of the OAuth flow.",
+      "is_issue": true,
+      "issue_summary": "Salesforce OAuth integration failing at step 3 with authorization error",
+      "notes": "Third-party integration failure with specific failure point"
+    },
+    {
+      "id": 67,
+      "user_message": "How do I bulk import contacts from a CSV file?",
+      "is_issue": true,
+      "issue_summary": "User needs guidance on bulk CSV contact import",
+      "notes": "How-to question for a supported feature"
+    },
+    {
+      "id": 68,
+      "user_message": "I was charged $149 but my plan is supposed to be $99 per month. Can you check what happened?",
+      "is_issue": true,
+      "issue_summary": "Unexpected billing overcharge — $149 vs expected $99",
+      "notes": "Billing discrepancy with specific amounts"
+    },
+    {
+      "id": 69,
+      "user_message": "The SSO login stopped working for our team after we changed our IdP from Okta to Azure AD.",
+      "is_issue": true,
+      "issue_summary": "SSO broken after IdP migration from Okta to Azure AD",
+      "notes": "Configuration-breaking change in auth setup"
+    },
+    {
+      "id": 70,
+      "user_message": "Is it possible to restrict which IP addresses can access our workspace?",
+      "is_issue": true,
+      "issue_summary": "User asking about IP allowlisting capability",
+      "notes": "Feature availability question relevant to security"
+    },
+    {
+      "id": 71,
+      "user_message": "The live chat widget is not showing up on our website even though I've added the embed code.",
+      "is_issue": true,
+      "issue_summary": "Chat widget not rendering despite embed code being added",
+      "notes": "Deployment issue with integration"
+    },
+    {
+      "id": 72,
+      "user_message": "I need to downgrade from Enterprise to Business but I can't find the option in my billing settings.",
+      "is_issue": true,
+      "issue_summary": "Unable to find downgrade option from Enterprise to Business plan",
+      "notes": "UI navigation or feature gap for plan downgrade"
+    },
+    {
+      "id": 73,
+      "user_message": "My colleague can see all customer conversations but I can only see the ones assigned to me. How do we fix this?",
+      "is_issue": true,
+      "issue_summary": "Permissions mismatch — user has restricted conversation visibility vs colleague",
+      "notes": "Role or permission misconfiguration"
+    },
+    {
+      "id": 74,
+      "user_message": "We want to migrate all our data to a new account. What's the process for that?",
+      "is_issue": true,
+      "issue_summary": "User asking about data migration process between accounts",
+      "notes": "Account management question requiring procedural answer"
+    },
+    {
+      "id": 75,
+      "user_message": "The search in the knowledge base is returning completely unrelated articles. It doesn't seem to work properly.",
+      "is_issue": true,
+      "issue_summary": "Knowledge base search returning irrelevant results",
+      "notes": "Search quality bug"
+    },
+    {
+      "id": 76,
+      "user_message": "I submitted a GDPR data deletion request two weeks ago and haven't heard anything back yet.",
+      "is_issue": true,
+      "issue_summary": "GDPR deletion request with no response after two weeks",
+      "notes": "Compliance-sensitive follow-up on unresolved request"
+    },
+    {
+      "id": 77,
+      "user_message": "Can you tell me what data you store about end users? We need this for our privacy policy.",
+      "is_issue": true,
+      "issue_summary": "User needs data retention/storage information for compliance purposes",
+      "notes": "Informational data privacy question with business purpose"
+    },
+    {
+      "id": 78,
+      "user_message": "The integration with Stripe stopped syncing transactions after the 10th of this month.",
+      "is_issue": true,
+      "issue_summary": "Stripe integration stopped syncing after a specific date",
+      "notes": "Time-bounded integration failure"
+    },
+    {
+      "id": 79,
+      "user_message": "I'm getting a 'Storage limit exceeded' error but we still have 40% of our storage unused according to the dashboard.",
+      "is_issue": true,
+      "issue_summary": "Storage limit error contradicts dashboard showing 40% free space",
+      "notes": "Data inconsistency causing functional error"
+    },
+    {
+      "id": 80,
+      "user_message": "How do I set up automated follow-up messages for leads who haven't responded in 3 days?",
+      "is_issue": true,
+      "issue_summary": "User needs setup guidance for automated follow-up sequences",
+      "notes": "How-to request for automation feature"
+    },
+    {
+      "id": 81,
+      "user_message": "Our entire team was logged out simultaneously today and nobody can get back in.",
+      "is_issue": true,
+      "issue_summary": "Mass simultaneous logout affecting the entire team, unable to log back in",
+      "notes": "High-severity access incident"
+    },
+    {
+      "id": 82,
+      "user_message": "The API documentation says the rate limit is 1000 req/min but we're hitting 429 errors at only 200 req/min.",
+      "is_issue": true,
+      "issue_summary": "Rate limiting occurring at 200 req/min despite documented 1000 req/min limit",
+      "notes": "Documented vs actual rate limit discrepancy"
+    },
+    {
+      "id": 83,
+      "user_message": "I need to give a contractor temporary access to our account for two weeks. Is there a way to set an expiry on a user account?",
+      "is_issue": true,
+      "issue_summary": "User asking about temporary/expiring user access capability",
+      "notes": "Feature capability question for access management"
+    },
+    {
+      "id": 84,
+      "user_message": "Our invoice for March shows $0 charged but we were definitely billed. The money left our account but nothing shows in the billing portal.",
+      "is_issue": true,
+      "issue_summary": "Billing portal showing $0 for March despite confirmed bank charge",
+      "notes": "Billing record inconsistency with real-world charge"
+    },
+    {
+      "id": 85,
+      "user_message": "The canned response I created is not showing up when my agents type '/' in the reply box.",
+      "is_issue": true,
+      "issue_summary": "Canned response not appearing in slash command trigger",
+      "notes": "Feature malfunction with specific reproduction trigger"
+    },
+    {
+      "id": 86,
+      "user_message": "Do you offer HIPAA-compliant data processing? We're in the healthcare sector.",
+      "is_issue": true,
+      "issue_summary": "User asking about HIPAA compliance for healthcare use case",
+      "notes": "Compliance qualification question with industry context"
+    },
+    {
+      "id": 87,
+      "user_message": "I'm trying to tag all conversations from last quarter as 'resolved' in bulk but the bulk action only applies to 25 at a time.",
+      "is_issue": true,
+      "issue_summary": "Bulk action capped at 25 conversations, insufficient for large backlog",
+      "notes": "Product limitation blocking workflow"
+    },
+    {
+      "id": 88,
+      "user_message": "The email notifications stopped working after I changed my notification settings back to 'all'. It was working before.",
+      "is_issue": true,
+      "issue_summary": "Email notifications broken after settings change to 'all'",
+      "notes": "Settings change broke a previously working feature"
+    },
+    {
+      "id": 89,
+      "user_message": "Can I white-label the chat widget to remove your branding and use our own logo?",
+      "is_issue": true,
+      "issue_summary": "Query about white-labeling and custom branding for the chat widget",
+      "notes": "Feature availability question for customization"
+    },
+    {
+      "id": 90,
+      "user_message": "We have two separate accounts for our two brands. Can we merge them into one without losing any data?",
+      "is_issue": true,
+      "issue_summary": "User asking about merging two accounts without data loss",
+      "notes": "Account consolidation question with data preservation concern"
+    },
+    {
+      "id": 91,
+      "user_message": "The translation of the chat widget is wrong — it's showing Spanish text even though our locale is set to French.",
+      "is_issue": true,
+      "issue_summary": "Widget showing wrong language (Spanish) despite French locale setting",
+      "notes": "Localization bug with clear mismatch"
+    },
+    {
+      "id": 92,
+      "user_message": "I'm trying to generate an API token but the 'Generate' button is greyed out under Developer Settings.",
+      "is_issue": true,
+      "issue_summary": "API token generation button disabled in Developer Settings",
+      "notes": "UI element inaccessible, blocking developer workflow"
+    },
+    {
+      "id": 93,
+      "user_message": "My subscription was paused automatically — I never requested this. What happened?",
+      "is_issue": true,
+      "issue_summary": "Subscription paused unexpectedly without user request",
+      "notes": "Unexpected account state change requiring investigation"
+    },
+    {
+      "id": 94,
+      "user_message": "The onboarding checklist says I need to install the tracking script, but I can't find where to get the script in my account.",
+      "is_issue": true,
+      "issue_summary": "User cannot locate tracking script required for onboarding step",
+      "notes": "Onboarding blocker with specific missing element"
+    },
+    {
+      "id": 95,
+      "user_message": "I want to understand how your AI decides which article to show to a customer. Is there documentation on this?",
+      "is_issue": true,
+      "issue_summary": "User seeking documentation on AI article selection logic",
+      "notes": "Documentation/explainability question with clear informational answer"
+    },
+    {
+      "id": 96,
+      "user_message": "We've been on the annual plan but want to switch to monthly billing. Is that possible and how do I do it?",
+      "is_issue": true,
+      "issue_summary": "User wants to switch from annual to monthly billing",
+      "notes": "Billing plan change request with how-to question"
+    },
+    {
+      "id": 97,
+      "user_message": "The auto-close rule I set up to close conversations after 24 hours of inactivity doesn't seem to be running.",
+      "is_issue": true,
+      "issue_summary": "Auto-close rule not executing as configured",
+      "notes": "Automation rule not firing"
+    },
+    {
+      "id": 98,
+      "user_message": "I accidentally sent a message to a customer with placeholder text like {{customer_name}} that wasn't filled in. How did that happen?",
+      "is_issue": true,
+      "issue_summary": "Template variable not substituted before message was sent to customer",
+      "notes": "Variable substitution failure in messaging"
+    },
+    {
+      "id": 99,
+      "user_message": "We need to export all conversation transcripts for a compliance audit. How do we do a full export?",
+      "is_issue": true,
+      "issue_summary": "Full conversation transcript export needed for compliance audit",
+      "notes": "Compliance-driven data export request"
+    },
+    {
+      "id": 100,
+      "user_message": "The AI is answering in English even though the customer is writing in German. Why is it ignoring the language?",
+      "is_issue": true,
+      "issue_summary": "AI responding in wrong language (English) despite German customer messages",
+      "notes": "Language detection or response generation bug"
+    }
+
+  ]
+}
