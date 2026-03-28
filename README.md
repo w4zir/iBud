@@ -63,10 +63,10 @@ From the project root:
 
   ```powershell
   # Build WixQA testset
-  .\venv\Scripts\python -m evaluation.build_wixqa_testset
+  .\venv\Scripts\python -m scripts.datasets.build_wixqa_testset
 
   # (Optional) Build Bitext full + sampled testsets
-  .\venv\Scripts\python -m evaluation.build_bitext_testset --mode both --max-per-intent 50
+  .\venv\Scripts\python -m scripts.datasets.build_bitext_testset --mode both --max-per-intent 50
 
   # Run evaluation against local backend (WixQA)
   .\venv\Scripts\python -m evaluation.ragas_eval --backend-url http://localhost:8000 --limit 50

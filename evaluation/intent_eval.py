@@ -4,7 +4,7 @@ from __future__ import annotations
 Intent classification evaluation against Bitext testsets.
 
 This script:
-  - Loads a Bitext-based JSON testset (built via evaluation/build_bitext_testset.py)
+  - Loads a Bitext-based JSON testset (built via scripts/datasets/build_bitext_testset.py)
   - Sends each question to the /chat API with dataset="bitext"
   - Reads the model's classified intent from the chat response
   - Compares predicted intent against the ground-truth intent in the testset

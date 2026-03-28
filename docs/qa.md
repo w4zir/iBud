@@ -130,7 +130,7 @@ When changing retrieval, chunking, embeddings, or LLM configuration:
 1. **Build the evaluation testset:**
 
    ```powershell
-   .\venv\Scripts\python -m evaluation.build_wixqa_testset
+   .\venv\Scripts\python -m scripts.datasets.build_wixqa_testset
    ```
 
 2. **Run the evaluation:**

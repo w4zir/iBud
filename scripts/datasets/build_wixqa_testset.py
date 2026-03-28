@@ -30,7 +30,8 @@ except Exception:  # pragma: no cover
 DATASET_NAME = "Wix/WixQA"
 EXPERT_SPLIT = "wixqa_expertwritten"
 SIMULATED_SPLIT = "wixqa_simulated"
-OUTPUT_PATH = Path(__file__).with_name("wixqa_testset.json")
+ROOT = Path(__file__).resolve().parents[2]
+OUTPUT_PATH = ROOT / "evaluation" / "wixqa_testset.json"
 
 
 def _extract_row(raw: Dict[str, Any], *, split: str, idx: int) -> Dict[str, Any]:

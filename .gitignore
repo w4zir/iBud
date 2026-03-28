@@ -204,6 +204,10 @@ cython_debug/
 # Evaluation artifacts
 evaluation/results/*.json
 
+# Training artifacts
+training/data/
+training/models/
+
 # Marimo
 marimo/_static/
 marimo/_lsp/

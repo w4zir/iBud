@@ -304,7 +304,7 @@ With these set, `backend/observability/langsmith_tracer.py` attaches metadata an
 1. Build the WixQA evaluation testset:
 
    ```powershell
-   .\venv\Scripts\python -m evaluation.build_wixqa_testset
+   .\venv\Scripts\python -m scripts.datasets.build_wixqa_testset
    ```
 
 2. Ensure the backend is running locally (for example via full stack Docker compose).

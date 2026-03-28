@@ -31,8 +31,9 @@ except Exception:  # pragma: no cover
 
 
 DATASET_NAME = "bitext/Bitext-customer-support-llm-chatbot-training-dataset"
-FULL_OUTPUT_PATH = Path(__file__).with_name("bitext_testset_full.json")
-SAMPLED_OUTPUT_PATH = Path(__file__).with_name("bitext_testset_sampled.json")
+ROOT = Path(__file__).resolve().parents[2]
+FULL_OUTPUT_PATH = ROOT / "evaluation" / "bitext_testset_full.json"
+SAMPLED_OUTPUT_PATH = ROOT / "evaluation" / "bitext_testset_sampled.json"
 
 
 def _extract_row(raw: Dict[str, Any], *, split: str, idx: int) -> Dict[str, Any]:

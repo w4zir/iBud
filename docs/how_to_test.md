@@ -267,7 +267,7 @@ You can now evaluate against both the WixQA and Bitext datasets.
 2. Build the WixQA testset:
 
    ```powershell
-   .\venv\Scripts\python -m evaluation.build_wixqa_testset
+   .\venv\Scripts\python -m scripts.datasets.build_wixqa_testset
    ```
 
 3. Run the RAGAS evaluation (WixQA remains the default dataset):
@@ -296,7 +296,7 @@ with either a full or sampled Bitext testset.
 
    ```powershell
    # Build both full and sampled Bitext testsets
-   .\venv\Scripts\python -m evaluation.build_bitext_testset --mode both --max-per-intent 50
+   .\venv\Scripts\python -m scripts.datasets.build_bitext_testset --mode both --max-per-intent 50
    ```
 
    This writes:

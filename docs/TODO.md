@@ -18,7 +18,7 @@ This TODO defines the step-by-step work needed to move the current iBud implemen
   - `infra/grafana/dashboards/phase6-observability.json`
   - `infra/prometheus/prometheus.yml`
 - RAGAS evaluation scripts:
-  - `evaluation/build_wixqa_testset.py`
+  - `scripts/datasets/build_wixqa_testset.py`
   - `evaluation/ragas_eval.py`
 
 ## Completion Definition

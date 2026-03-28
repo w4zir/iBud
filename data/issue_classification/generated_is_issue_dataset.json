@@ -1,0 +1,116 @@
+{
+  "metadata": {
+    "source_research": "https://fin.ai/research/david-vs-goliath-are-small-llms-any-good/",
+    "description": "Synthetic user messages for is_issue binary classification using 17 non-issue categories and actionable issue samples.",
+    "generator": {
+      "provider": "ollama",
+      "model": "llama3.2",
+      "temperature": 0.9,
+      "batch_size": 2,
+      "max_retries": 3,
+      "seed": 42,
+      "request_timeout": 30.0,
+      "issue_percent": 50.0,
+      "checkpoint_every_n_batches": 5
+    },
+    "total_samples": 5,
+    "is_issue_true": 2,
+    "is_issue_false": 3,
+    "non_issue_categories_covered": [
+      "Greetings",
+      "Goodbyes",
+      "Negative reactions (no new info)",
+      "Acknowledgments",
+      "Gratitude",
+      "Positive reactions",
+      "Connection checks",
+      "Pleasantries",
+      "Small talk",
+      "Meta-commentary",
+      "Bot identity questions",
+      "Fillers & expressions",
+      "Testing",
+      "Gibberish",
+      "Thinking",
+      "Customer withdraws request",
+      "Indicating a question without stating it"
+    ],
+    "per_non_issue_category_counts": {
+      "Greetings": 1,
+      "Goodbyes": 1,
+      "Negative reactions (no new info)": 1,
+      "Acknowledgments": 0,
+      "Gratitude": 0,
+      "Positive reactions": 0,
+      "Connection checks": 0,
+      "Pleasantries": 0,
+      "Small talk": 0,
+      "Meta-commentary": 0,
+      "Bot identity questions": 0,
+      "Fillers & expressions": 0,
+      "Testing": 0,
+      "Gibberish": 0,
+      "Thinking": 0,
+      "Customer withdraws request": 0,
+      "Indicating a question without stating it": 0
+    },
+    "missing_non_issue_categories": [
+      "Acknowledgments",
+      "Gratitude",
+      "Positive reactions",
+      "Connection checks",
+      "Pleasantries",
+      "Small talk",
+      "Meta-commentary",
+      "Bot identity questions",
+      "Fillers & expressions",
+      "Testing",
+      "Gibberish",
+      "Thinking",
+      "Customer withdraws request",
+      "Indicating a question without stating it"
+    ],
+    "deduplicates_removed": 0,
+    "failed_batches": 0,
+    "retries_total": 0,
+    "resumed_from_existing": false,
+    "previous_metadata": {}
+  },
+  "samples": [
+    {
+      "id": 1,
+      "user_message": "test issue sample 3",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 2,
+      "user_message": "test issue sample 4",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 3,
+      "user_message": "test non issue sample 1",
+      "is_issue": false,
+      "non_issue_category": "Negative reactions (no new info)",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 4,
+      "user_message": "test non issue sample 2",
+      "is_issue": false,
+      "non_issue_category": "Goodbyes",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 5,
+      "user_message": "test non issue sample 5",
+      "is_issue": false,
+      "non_issue_category": "Greetings",
+      "notes": "dry run sample"
+    }
+  ]
+}

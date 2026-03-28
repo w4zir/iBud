@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import Any, Dict, List
 
 from backend import __init__  # ensure package import works
-from evaluation import build_wixqa_testset
+from scripts.datasets import build_wixqa_testset
 
 
 class DummyDataset:

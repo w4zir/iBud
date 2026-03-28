@@ -1,0 +1,1463 @@
+{
+  "metadata": {
+    "source_research": "https://fin.ai/research/david-vs-goliath-are-small-llms-any-good/",
+    "description": "Synthetic user messages for is_issue binary classification using 17 non-issue categories and actionable issue samples.",
+    "generator": {
+      "provider": "ollama",
+      "model": "llama3.2",
+      "temperature": 0.9,
+      "batch_size": 20,
+      "max_retries": 3,
+      "seed": 42
+    },
+    "total_samples": 200,
+    "is_issue_true": 100,
+    "is_issue_false": 100,
+    "non_issue_categories_covered": [
+      "Greetings",
+      "Goodbyes",
+      "Negative reactions (no new info)",
+      "Acknowledgments",
+      "Gratitude",
+      "Positive reactions",
+      "Connection checks",
+      "Pleasantries",
+      "Small talk",
+      "Meta-commentary",
+      "Bot identity questions",
+      "Fillers & expressions",
+      "Testing",
+      "Gibberish",
+      "Thinking",
+      "Customer withdraws request",
+      "Indicating a question without stating it"
+    ],
+    "per_non_issue_category_counts": {
+      "Greetings": 6,
+      "Goodbyes": 6,
+      "Negative reactions (no new info)": 6,
+      "Acknowledgments": 6,
+      "Gratitude": 6,
+      "Positive reactions": 6,
+      "Connection checks": 6,
+      "Pleasantries": 6,
+      "Small talk": 6,
+      "Meta-commentary": 6,
+      "Bot identity questions": 6,
+      "Fillers & expressions": 6,
+      "Testing": 6,
+      "Gibberish": 6,
+      "Thinking": 6,
+      "Customer withdraws request": 5,
+      "Indicating a question without stating it": 5
+    },
+    "missing_non_issue_categories": [],
+    "deduplicates_removed": 0,
+    "failed_batches": 0,
+    "retries_total": 0,
+    "resumed_from_existing": false,
+    "previous_metadata": {}
+  },
+  "samples": [
+    {
+      "id": 1,
+      "user_message": "test issue sample 21",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 2,
+      "user_message": "test issue sample 22",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 3,
+      "user_message": "test issue sample 23",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 4,
+      "user_message": "test issue sample 24",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 5,
+      "user_message": "test issue sample 25",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 6,
+      "user_message": "test issue sample 26",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 7,
+      "user_message": "test issue sample 27",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 8,
+      "user_message": "test issue sample 28",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 9,
+      "user_message": "test issue sample 29",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 10,
+      "user_message": "test issue sample 30",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 11,
+      "user_message": "test issue sample 31",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 12,
+      "user_message": "test issue sample 32",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 13,
+      "user_message": "test issue sample 33",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 14,
+      "user_message": "test issue sample 34",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 15,
+      "user_message": "test issue sample 35",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 16,
+      "user_message": "test issue sample 36",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 17,
+      "user_message": "test issue sample 37",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 18,
+      "user_message": "test issue sample 38",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 19,
+      "user_message": "test issue sample 39",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 20,
+      "user_message": "test issue sample 40",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 21,
+      "user_message": "test issue sample 61",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 22,
+      "user_message": "test issue sample 62",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 23,
+      "user_message": "test issue sample 63",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 24,
+      "user_message": "test issue sample 64",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 25,
+      "user_message": "test issue sample 65",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 26,
+      "user_message": "test issue sample 66",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 27,
+      "user_message": "test issue sample 67",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 28,
+      "user_message": "test issue sample 68",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 29,
+      "user_message": "test issue sample 69",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 30,
+      "user_message": "test issue sample 70",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 31,
+      "user_message": "test issue sample 71",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 32,
+      "user_message": "test issue sample 72",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 33,
+      "user_message": "test issue sample 73",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 34,
+      "user_message": "test issue sample 74",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 35,
+      "user_message": "test issue sample 75",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 36,
+      "user_message": "test issue sample 76",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 37,
+      "user_message": "test issue sample 77",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 38,
+      "user_message": "test issue sample 78",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 39,
+      "user_message": "test issue sample 79",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 40,
+      "user_message": "test issue sample 80",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 41,
+      "user_message": "test issue sample 101",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 42,
+      "user_message": "test issue sample 102",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 43,
+      "user_message": "test issue sample 103",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 44,
+      "user_message": "test issue sample 104",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 45,
+      "user_message": "test issue sample 105",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 46,
+      "user_message": "test issue sample 106",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 47,
+      "user_message": "test issue sample 107",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 48,
+      "user_message": "test issue sample 108",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 49,
+      "user_message": "test issue sample 109",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 50,
+      "user_message": "test issue sample 110",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 51,
+      "user_message": "test issue sample 111",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 52,
+      "user_message": "test issue sample 112",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 53,
+      "user_message": "test issue sample 113",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 54,
+      "user_message": "test issue sample 114",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 55,
+      "user_message": "test issue sample 115",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 56,
+      "user_message": "test issue sample 116",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 57,
+      "user_message": "test issue sample 117",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 58,
+      "user_message": "test issue sample 118",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 59,
+      "user_message": "test issue sample 119",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 60,
+      "user_message": "test issue sample 120",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 61,
+      "user_message": "test issue sample 141",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 62,
+      "user_message": "test issue sample 142",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 63,
+      "user_message": "test issue sample 143",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 64,
+      "user_message": "test issue sample 144",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 65,
+      "user_message": "test issue sample 145",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 66,
+      "user_message": "test issue sample 146",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 67,
+      "user_message": "test issue sample 147",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 68,
+      "user_message": "test issue sample 148",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 69,
+      "user_message": "test issue sample 149",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 70,
+      "user_message": "test issue sample 150",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 71,
+      "user_message": "test issue sample 151",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 72,
+      "user_message": "test issue sample 152",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 73,
+      "user_message": "test issue sample 153",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 74,
+      "user_message": "test issue sample 154",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 75,
+      "user_message": "test issue sample 155",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 76,
+      "user_message": "test issue sample 156",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 77,
+      "user_message": "test issue sample 157",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 78,
+      "user_message": "test issue sample 158",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 79,
+      "user_message": "test issue sample 159",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 80,
+      "user_message": "test issue sample 160",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 81,
+      "user_message": "test issue sample 181",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 82,
+      "user_message": "test issue sample 182",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 83,
+      "user_message": "test issue sample 183",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 84,
+      "user_message": "test issue sample 184",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 85,
+      "user_message": "test issue sample 185",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 86,
+      "user_message": "test issue sample 186",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 87,
+      "user_message": "test issue sample 187",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 88,
+      "user_message": "test issue sample 188",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 89,
+      "user_message": "test issue sample 189",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 90,
+      "user_message": "test issue sample 190",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 91,
+      "user_message": "test issue sample 191",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 92,
+      "user_message": "test issue sample 192",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 93,
+      "user_message": "test issue sample 193",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 94,
+      "user_message": "test issue sample 194",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 95,
+      "user_message": "test issue sample 195",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 96,
+      "user_message": "test issue sample 196",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 97,
+      "user_message": "test issue sample 197",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 98,
+      "user_message": "test issue sample 198",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 99,
+      "user_message": "test issue sample 199",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 100,
+      "user_message": "test issue sample 200",
+      "is_issue": true,
+      "non_issue_category": null,
+      "notes": "dry run sample"
+    },
+    {
+      "id": 101,
+      "user_message": "test non issue sample 1",
+      "is_issue": false,
+      "non_issue_category": "Pleasantries",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 102,
+      "user_message": "test non issue sample 2",
+      "is_issue": false,
+      "non_issue_category": "Connection checks",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 103,
+      "user_message": "test non issue sample 3",
+      "is_issue": false,
+      "non_issue_category": "Customer withdraws request",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 104,
+      "user_message": "test non issue sample 4",
+      "is_issue": false,
+      "non_issue_category": "Goodbyes",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 105,
+      "user_message": "test non issue sample 5",
+      "is_issue": false,
+      "non_issue_category": "Bot identity questions",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 106,
+      "user_message": "test non issue sample 6",
+      "is_issue": false,
+      "non_issue_category": "Small talk",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 107,
+      "user_message": "test non issue sample 7",
+      "is_issue": false,
+      "non_issue_category": "Greetings",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 108,
+      "user_message": "test non issue sample 8",
+      "is_issue": false,
+      "non_issue_category": "Fillers & expressions",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 109,
+      "user_message": "test non issue sample 9",
+      "is_issue": false,
+      "non_issue_category": "Negative reactions (no new info)",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 110,
+      "user_message": "test non issue sample 10",
+      "is_issue": false,
+      "non_issue_category": "Gibberish",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 111,
+      "user_message": "test non issue sample 11",
+      "is_issue": false,
+      "non_issue_category": "Testing",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 112,
+      "user_message": "test non issue sample 12",
+      "is_issue": false,
+      "non_issue_category": "Goodbyes",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 113,
+      "user_message": "test non issue sample 13",
+      "is_issue": false,
+      "non_issue_category": "Meta-commentary",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 114,
+      "user_message": "test non issue sample 14",
+      "is_issue": false,
+      "non_issue_category": "Meta-commentary",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 115,
+      "user_message": "test non issue sample 15",
+      "is_issue": false,
+      "non_issue_category": "Testing",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 116,
+      "user_message": "test non issue sample 16",
+      "is_issue": false,
+      "non_issue_category": "Pleasantries",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 117,
+      "user_message": "test non issue sample 17",
+      "is_issue": false,
+      "non_issue_category": "Small talk",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 118,
+      "user_message": "test non issue sample 18",
+      "is_issue": false,
+      "non_issue_category": "Customer withdraws request",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 119,
+      "user_message": "test non issue sample 19",
+      "is_issue": false,
+      "non_issue_category": "Testing",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 120,
+      "user_message": "test non issue sample 20",
+      "is_issue": false,
+      "non_issue_category": "Connection checks",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 121,
+      "user_message": "test non issue sample 41",
+      "is_issue": false,
+      "non_issue_category": "Indicating a question without stating it",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 122,
+      "user_message": "test non issue sample 42",
+      "is_issue": false,
+      "non_issue_category": "Gratitude",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 123,
+      "user_message": "test non issue sample 43",
+      "is_issue": false,
+      "non_issue_category": "Fillers & expressions",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 124,
+      "user_message": "test non issue sample 44",
+      "is_issue": false,
+      "non_issue_category": "Negative reactions (no new info)",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 125,
+      "user_message": "test non issue sample 45",
+      "is_issue": false,
+      "non_issue_category": "Customer withdraws request",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 126,
+      "user_message": "test non issue sample 46",
+      "is_issue": false,
+      "non_issue_category": "Meta-commentary",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 127,
+      "user_message": "test non issue sample 47",
+      "is_issue": false,
+      "non_issue_category": "Goodbyes",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 128,
+      "user_message": "test non issue sample 48",
+      "is_issue": false,
+      "non_issue_category": "Gibberish",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 129,
+      "user_message": "test non issue sample 49",
+      "is_issue": false,
+      "non_issue_category": "Negative reactions (no new info)",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 130,
+      "user_message": "test non issue sample 50",
+      "is_issue": false,
+      "non_issue_category": "Bot identity questions",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 131,
+      "user_message": "test non issue sample 51",
+      "is_issue": false,
+      "non_issue_category": "Indicating a question without stating it",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 132,
+      "user_message": "test non issue sample 52",
+      "is_issue": false,
+      "non_issue_category": "Small talk",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 133,
+      "user_message": "test non issue sample 53",
+      "is_issue": false,
+      "non_issue_category": "Thinking",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 134,
+      "user_message": "test non issue sample 54",
+      "is_issue": false,
+      "non_issue_category": "Gibberish",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 135,
+      "user_message": "test non issue sample 55",
+      "is_issue": false,
+      "non_issue_category": "Gratitude",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 136,
+      "user_message": "test non issue sample 56",
+      "is_issue": false,
+      "non_issue_category": "Positive reactions",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 137,
+      "user_message": "test non issue sample 57",
+      "is_issue": false,
+      "non_issue_category": "Negative reactions (no new info)",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 138,
+      "user_message": "test non issue sample 58",
+      "is_issue": false,
+      "non_issue_category": "Pleasantries",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 139,
+      "user_message": "test non issue sample 59",
+      "is_issue": false,
+      "non_issue_category": "Acknowledgments",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 140,
+      "user_message": "test non issue sample 60",
+      "is_issue": false,
+      "non_issue_category": "Thinking",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 141,
+      "user_message": "test non issue sample 81",
+      "is_issue": false,
+      "non_issue_category": "Indicating a question without stating it",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 142,
+      "user_message": "test non issue sample 82",
+      "is_issue": false,
+      "non_issue_category": "Acknowledgments",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 143,
+      "user_message": "test non issue sample 83",
+      "is_issue": false,
+      "non_issue_category": "Indicating a question without stating it",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 144,
+      "user_message": "test non issue sample 84",
+      "is_issue": false,
+      "non_issue_category": "Positive reactions",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 145,
+      "user_message": "test non issue sample 85",
+      "is_issue": false,
+      "non_issue_category": "Meta-commentary",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 146,
+      "user_message": "test non issue sample 86",
+      "is_issue": false,
+      "non_issue_category": "Pleasantries",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 147,
+      "user_message": "test non issue sample 87",
+      "is_issue": false,
+      "non_issue_category": "Testing",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 148,
+      "user_message": "test non issue sample 88",
+      "is_issue": false,
+      "non_issue_category": "Thinking",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 149,
+      "user_message": "test non issue sample 89",
+      "is_issue": false,
+      "non_issue_category": "Positive reactions",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 150,
+      "user_message": "test non issue sample 90",
+      "is_issue": false,
+      "non_issue_category": "Customer withdraws request",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 151,
+      "user_message": "test non issue sample 91",
+      "is_issue": false,
+      "non_issue_category": "Bot identity questions",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 152,
+      "user_message": "test non issue sample 92",
+      "is_issue": false,
+      "non_issue_category": "Pleasantries",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 153,
+      "user_message": "test non issue sample 93",
+      "is_issue": false,
+      "non_issue_category": "Greetings",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 154,
+      "user_message": "test non issue sample 94",
+      "is_issue": false,
+      "non_issue_category": "Fillers & expressions",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 155,
+      "user_message": "test non issue sample 95",
+      "is_issue": false,
+      "non_issue_category": "Pleasantries",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 156,
+      "user_message": "test non issue sample 96",
+      "is_issue": false,
+      "non_issue_category": "Small talk",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 157,
+      "user_message": "test non issue sample 97",
+      "is_issue": false,
+      "non_issue_category": "Goodbyes",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 158,
+      "user_message": "test non issue sample 98",
+      "is_issue": false,
+      "non_issue_category": "Gratitude",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 159,
+      "user_message": "test non issue sample 99",
+      "is_issue": false,
+      "non_issue_category": "Small talk",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 160,
+      "user_message": "test non issue sample 100",
+      "is_issue": false,
+      "non_issue_category": "Greetings",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 161,
+      "user_message": "test non issue sample 121",
+      "is_issue": false,
+      "non_issue_category": "Positive reactions",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 162,
+      "user_message": "test non issue sample 122",
+      "is_issue": false,
+      "non_issue_category": "Positive reactions",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 163,
+      "user_message": "test non issue sample 123",
+      "is_issue": false,
+      "non_issue_category": "Thinking",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 164,
+      "user_message": "test non issue sample 124",
+      "is_issue": false,
+      "non_issue_category": "Gibberish",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 165,
+      "user_message": "test non issue sample 125",
+      "is_issue": false,
+      "non_issue_category": "Bot identity questions",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 166,
+      "user_message": "test non issue sample 126",
+      "is_issue": false,
+      "non_issue_category": "Connection checks",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 167,
+      "user_message": "test non issue sample 127",
+      "is_issue": false,
+      "non_issue_category": "Acknowledgments",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 168,
+      "user_message": "test non issue sample 128",
+      "is_issue": false,
+      "non_issue_category": "Negative reactions (no new info)",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 169,
+      "user_message": "test non issue sample 129",
+      "is_issue": false,
+      "non_issue_category": "Testing",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 170,
+      "user_message": "test non issue sample 130",
+      "is_issue": false,
+      "non_issue_category": "Greetings",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 171,
+      "user_message": "test non issue sample 131",
+      "is_issue": false,
+      "non_issue_category": "Bot identity questions",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 172,
+      "user_message": "test non issue sample 132",
+      "is_issue": false,
+      "non_issue_category": "Positive reactions",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 173,
+      "user_message": "test non issue sample 133",
+      "is_issue": false,
+      "non_issue_category": "Gratitude",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 174,
+      "user_message": "test non issue sample 134",
+      "is_issue": false,
+      "non_issue_category": "Gibberish",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 175,
+      "user_message": "test non issue sample 135",
+      "is_issue": false,
+      "non_issue_category": "Connection checks",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 176,
+      "user_message": "test non issue sample 136",
+      "is_issue": false,
+      "non_issue_category": "Meta-commentary",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 177,
+      "user_message": "test non issue sample 137",
+      "is_issue": false,
+      "non_issue_category": "Goodbyes",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 178,
+      "user_message": "test non issue sample 138",
+      "is_issue": false,
+      "non_issue_category": "Gratitude",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 179,
+      "user_message": "test non issue sample 139",
+      "is_issue": false,
+      "non_issue_category": "Connection checks",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 180,
+      "user_message": "test non issue sample 140",
+      "is_issue": false,
+      "non_issue_category": "Fillers & expressions",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 181,
+      "user_message": "test non issue sample 161",
+      "is_issue": false,
+      "non_issue_category": "Connection checks",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 182,
+      "user_message": "test non issue sample 162",
+      "is_issue": false,
+      "non_issue_category": "Bot identity questions",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 183,
+      "user_message": "test non issue sample 163",
+      "is_issue": false,
+      "non_issue_category": "Indicating a question without stating it",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 184,
+      "user_message": "test non issue sample 164",
+      "is_issue": false,
+      "non_issue_category": "Negative reactions (no new info)",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 185,
+      "user_message": "test non issue sample 165",
+      "is_issue": false,
+      "non_issue_category": "Gratitude",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 186,
+      "user_message": "test non issue sample 166",
+      "is_issue": false,
+      "non_issue_category": "Acknowledgments",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 187,
+      "user_message": "test non issue sample 167",
+      "is_issue": false,
+      "non_issue_category": "Customer withdraws request",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 188,
+      "user_message": "test non issue sample 168",
+      "is_issue": false,
+      "non_issue_category": "Acknowledgments",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 189,
+      "user_message": "test non issue sample 169",
+      "is_issue": false,
+      "non_issue_category": "Testing",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 190,
+      "user_message": "test non issue sample 170",
+      "is_issue": false,
+      "non_issue_category": "Gibberish",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 191,
+      "user_message": "test non issue sample 171",
+      "is_issue": false,
+      "non_issue_category": "Fillers & expressions",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 192,
+      "user_message": "test non issue sample 172",
+      "is_issue": false,
+      "non_issue_category": "Small talk",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 193,
+      "user_message": "test non issue sample 173",
+      "is_issue": false,
+      "non_issue_category": "Goodbyes",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 194,
+      "user_message": "test non issue sample 174",
+      "is_issue": false,
+      "non_issue_category": "Acknowledgments",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 195,
+      "user_message": "test non issue sample 175",
+      "is_issue": false,
+      "non_issue_category": "Greetings",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 196,
+      "user_message": "test non issue sample 176",
+      "is_issue": false,
+      "non_issue_category": "Greetings",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 197,
+      "user_message": "test non issue sample 177",
+      "is_issue": false,
+      "non_issue_category": "Meta-commentary",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 198,
+      "user_message": "test non issue sample 178",
+      "is_issue": false,
+      "non_issue_category": "Thinking",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 199,
+      "user_message": "test non issue sample 179",
+      "is_issue": false,
+      "non_issue_category": "Fillers & expressions",
+      "notes": "dry run sample"
+    },
+    {
+      "id": 200,
+      "user_message": "test non issue sample 180",
+      "is_issue": false,
+      "non_issue_category": "Thinking",
+      "notes": "dry run sample"
+    }
+  ]
+}

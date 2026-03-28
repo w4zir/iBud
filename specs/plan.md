@@ -100,7 +100,8 @@ ecom-support-rag/
 │
 ├── evaluation/
 │   ├── ragas_eval.py             # RAGAS evaluation runner
-│   ├── build_wixqa_testset.py    # PRIMARY: Build eval set from WixQA ExpertWritten + Simulated
+│   ├── datasets/
+│   │   └── build_wixqa_testset.py    # PRIMARY: Build eval set from WixQA ExpertWritten + Simulated
 │   ├── build_rjac_testset.py     # OPTIONAL: Build supplementary eval set from rjac dataset
 │   └── results/                  # JSON eval outputs
 │
@@ -564,7 +565,7 @@ WixQA provides three ready-made eval splits that map directly to RAGAS metrics w
 | `wixqa_simulated` | 200 | Secondary eval — expert-validated, good for regression testing |
 | `wixqa_synthetic` | 6,222 | Scale testing — LLM-generated, use for stress-testing retrieval |
 
-- [ ] `P6-6` Write `evaluation/build_wixqa_testset.py`:
+- [ ] `P6-6` Write `scripts/datasets/build_wixqa_testset.py`:
   - Load `wixqa_expertwritten` and `wixqa_simulated` splits
   - For each row: extract `question`, `answer` (ground truth), `supporting_article` (ground truth context)
   - Save as `evaluation/wixqa_testset.json`
