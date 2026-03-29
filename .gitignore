@@ -207,7 +207,7 @@ evaluation/results/*.json
 # Training artifacts and datasets
 training/data/
 training/models/
-
+datasets/
 # Marimo
 marimo/_static/
 marimo/_lsp/
