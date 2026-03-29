@@ -204,7 +204,7 @@ cython_debug/
 # Evaluation artifacts
 evaluation/results/*.json
 
-# Training artifacts
+# Training artifacts and datasets
 training/data/
 training/models/
 
