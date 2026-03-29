@@ -10,6 +10,15 @@ With ``--compare-with-base``, uses or downloads ModernBERT zeroshot v2 under ``t
 initializes a multiclass head from ``label2id.json``, evaluates on the same data, and reports
 finetuned vs base metrics plus deltas.
 
+Written ``--metrics-json`` output includes per-label precision, recall, F1, tp/tn/fp/fn (OvR)
+(with ``label_name`` on each label entry), and all misclassified rows (``text``, true vs predicted
+labels). Always writes ``training/data/bitext/label_confusion_matrix.csv`` (rows: true label,
+columns: predicted label, cells: counts) from the finetuned model pass. The compare section repeats
+per-label and misclassified entries for finetuned and base models.
+
+Each model runs the test set once (single ``Trainer.predict()`` pass); with ``--compare-with-base``
+that is two passes total (finetuned, then base).
+
 Example (from repo root)::
 
     python training/scripts/eval_multiclass_modernbert.py \\
@@ -28,6 +37,7 @@ Example (from repo root)::
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import logging
 import math
@@ -39,7 +49,15 @@ from typing import Any
 
 import numpy as np
 import torch
+import torch.nn.functional as F
 from transformers import AutoModelForSequenceClassification, AutoTokenizer, Trainer, TrainingArguments
+
+try:
+    from sklearn.metrics import confusion_matrix, multilabel_confusion_matrix
+except ImportError as e:  # pragma: no cover
+    raise SystemExit(
+        "scikit-learn is required for per-label metrics. Install with: pip install scikit-learn"
+    ) from e
 
 _SCRIPTS = Path(__file__).resolve().parent
 if str(_SCRIPTS) not in sys.path:
@@ -204,6 +222,127 @@ def _ensure_base_model_local(
     return base_model_dir
 
 
+def _per_label_metrics(
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    *,
+    num_labels: int,
+    id2label: dict[int, str],
+) -> dict[str, Any]:
+    """Per-class OvR counts (tp/tn/fp/fn) and precision, recall, f1."""
+    y_true = np.asarray(y_true, dtype=np.int64).reshape(-1)
+    y_pred = np.asarray(y_pred, dtype=np.int64).reshape(-1)
+    labels = list(range(num_labels))
+    mcm = multilabel_confusion_matrix(y_true, y_pred, labels=labels)
+    out: dict[str, Any] = {}
+    for i in labels:
+        tn, fp = int(mcm[i][0][0]), int(mcm[i][0][1])
+        fn, tp = int(mcm[i][1][0]), int(mcm[i][1][1])
+        prec = tp / (tp + fp) if (tp + fp) > 0 else 0.0
+        rec = tp / (tp + fn) if (tp + fn) > 0 else 0.0
+        f1 = (2 * prec * rec / (prec + rec)) if (prec + rec) > 0 else 0.0
+        name = id2label[i]
+        out[name] = {
+            "label_id": i,
+            "label_name": name,
+            "precision": prec,
+            "recall": rec,
+            "f1": f1,
+            "tp": tp,
+            "tn": tn,
+            "fp": fp,
+            "fn": fn,
+        }
+    return out
+
+
+def _write_label_confusion_matrix_csv(
+    path: Path,
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    *,
+    num_labels: int,
+    id2label: dict[int, str],
+) -> None:
+    """Write multiclass confusion matrix: rows = true label, columns = predicted label, cell = count."""
+    y_true = np.asarray(y_true, dtype=np.int64).reshape(-1)
+    y_pred = np.asarray(y_pred, dtype=np.int64).reshape(-1)
+    labels = list(range(num_labels))
+    cm = confusion_matrix(y_true, y_pred, labels=labels)
+    names = [id2label[i] for i in labels]
+    path = path.resolve()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", newline="", encoding="utf-8") as f:
+        w = csv.writer(f)
+        w.writerow([""] + names)
+        for i, row in enumerate(cm):
+            w.writerow([names[i]] + [int(x) for x in row])
+
+
+def _metrics_from_single_predict_pass(
+    predict_out: Any,
+    logits: np.ndarray,
+    y_true: np.ndarray,
+    *,
+    num_labels: int,
+) -> dict[str, Any]:
+    """Build the same ``eval_*`` keys as ``Trainer.evaluate()`` from one ``predict()`` pass."""
+    y_true = np.asarray(y_true, dtype=np.int64).reshape(-1)
+    logits = np.asarray(logits, dtype=np.float64)
+    compute_fn = build_compute_metrics_fn(num_labels)
+    task = compute_fn((logits, y_true))
+    metrics: dict[str, Any] = {f"eval_{k}": float(v) for k, v in task.items()}
+
+    lt = torch.from_numpy(logits).float()
+    yt = torch.from_numpy(y_true).long()
+    metrics["eval_loss"] = float(F.cross_entropy(lt, yt).item())
+
+    # Timing and other HF extras use ``test_*`` in ``predict()``; mirror ``evaluate()``'s ``eval_*`` names.
+    raw = getattr(predict_out, "metrics", None) or {}
+    for k, v in raw.items():
+        if not k.startswith("test_"):
+            continue
+        nk = f"eval_{k[5:]}"
+        if nk in metrics:
+            continue
+        if isinstance(v, (bool, str)) or v is None:
+            metrics[nk] = v
+        else:
+            try:
+                fv = float(v)
+                if not (math.isnan(fv) or math.isinf(fv)):
+                    metrics[nk] = fv
+            except (TypeError, ValueError):
+                metrics[nk] = v
+    return metrics
+
+
+def _misclassified_samples(
+    texts: list[str],
+    y_true: np.ndarray,
+    y_pred: np.ndarray,
+    id2label: dict[int, str],
+) -> list[dict[str, Any]]:
+    y_true = np.asarray(y_true, dtype=np.int64).reshape(-1)
+    y_pred = np.asarray(y_pred, dtype=np.int64).reshape(-1)
+    rows: list[dict[str, Any]] = []
+    for i in range(len(y_true)):
+        if y_true[i] == y_pred[i]:
+            continue
+        ti, pi = int(y_true[i]), int(y_pred[i])
+        rows.append(
+            {
+                "index": i,
+                "text": texts[i],
+                "true_label": id2label[ti],
+                "true_label_id": ti,
+                "predicted_label": id2label[pi],
+                "predicted_label_id": pi,
+            }
+        )
+    return rows
+
+
 def _run_eval(
     model_source: str,
     ds: Any,
@@ -219,8 +358,11 @@ def _run_eval(
     label2id: dict[str, int],
     eval_desc: str,
     tokenizer_fallbacks: list[str],
-) -> tuple[dict[str, Any], str | None]:
-    """Tokenize ``ds``, run Trainer.evaluate, return (metrics dict, config name_or_path)."""
+) -> tuple[dict[str, Any], str | None, np.ndarray, np.ndarray, list[str]]:
+    """Tokenize ``ds`` and run a single ``Trainer.predict()`` pass (one forward over the set).
+
+    Returns (metrics dict, config name_or_path, y_true, y_pred, texts).
+    """
     tokenizer = _load_tokenizer_with_fallbacks(model_source, tokenizer_fallbacks)
     if base_init:
         model = AutoModelForSequenceClassification.from_pretrained(
@@ -254,6 +396,8 @@ def _run_eval(
         desc=eval_desc,
     )
 
+    texts = list(ds["text"])
+
     tmpdir = tempfile.mkdtemp(prefix="modernbert-mc-eval-")
     try:
         training_args = TrainingArguments(
@@ -272,12 +416,18 @@ def _run_eval(
             compute_metrics=build_compute_metrics_fn(num_labels),
             **_trainer_tokenizer_kwargs(tokenizer),
         )
-        metrics = trainer.evaluate()
+        predict_out = trainer.predict(eval_tok)
+        logits = np.asarray(predict_out.predictions, dtype=np.float64)
+        y_true = np.asarray(predict_out.label_ids, dtype=np.int64).reshape(-1)
+        y_pred = np.argmax(logits, axis=-1)
+        metrics = _metrics_from_single_predict_pass(
+            predict_out, logits, y_true, num_labels=num_labels
+        )
     finally:
         shutil.rmtree(tmpdir, ignore_errors=True)
 
     name_or_path = getattr(model.config, "name_or_path", None)
-    return dict(metrics), name_or_path
+    return dict(metrics), name_or_path, y_true, y_pred, texts
 
 
 def _metric_deltas(
@@ -318,8 +468,10 @@ def _metadata_payload(
     label2id: dict[str, int],
     ft_name_or_path: str | None,
     metrics: dict[str, Any],
+    per_label_metrics: dict[str, Any] | None = None,
+    misclassified_samples: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    return {
+    payload: dict[str, Any] = {
         "checkpoint": str(ckpt),
         "data_file": str(data_path),
         "label2id_file": str(label2id_path),
@@ -330,6 +482,11 @@ def _metadata_payload(
         "config_name_or_path": ft_name_or_path,
         "metrics": _json_safe(dict(metrics)),
     }
+    if per_label_metrics is not None:
+        payload["per_label_metrics"] = _json_safe(per_label_metrics)
+    if misclassified_samples is not None:
+        payload["misclassified_samples"] = _json_safe(misclassified_samples)
+    return payload
 
 
 def main() -> int:
@@ -359,7 +516,7 @@ def main() -> int:
     tok_fallbacks = [str(args.base_model_dir.resolve()), args.base_model_id]
 
     _LOG.info("Evaluating finetuned checkpoint=%s", ckpt)
-    metrics, ft_name_or_path = _run_eval(
+    metrics, ft_name_or_path, y_true_ft, y_pred_ft, texts = _run_eval(
         str(ckpt),
         ds,
         num_labels=num_labels,
@@ -376,6 +533,20 @@ def main() -> int:
     )
     _LOG.info("Metrics: %s", metrics)
 
+    per_label_ft = _per_label_metrics(
+        y_true_ft, y_pred_ft, num_labels=num_labels, id2label=id2label
+    )
+    misclassified_ft = _misclassified_samples(texts, y_true_ft, y_pred_ft, id2label)
+    cm_csv = _BITEXT_DATA / "label_confusion_matrix.csv"
+    _write_label_confusion_matrix_csv(
+        cm_csv,
+        y_true_ft,
+        y_pred_ft,
+        num_labels=num_labels,
+        id2label=id2label,
+    )
+    _LOG.info("Wrote label confusion matrix CSV: %s", cm_csv)
+
     if not args.compare_with_base:
         payload = _metadata_payload(
             ckpt=ckpt,
@@ -387,6 +558,8 @@ def main() -> int:
             label2id=label2id,
             ft_name_or_path=ft_name_or_path,
             metrics=dict(metrics),
+            per_label_metrics=per_label_ft,
+            misclassified_samples=misclassified_ft,
         )
         if args.metrics_json is not None:
             out = args.metrics_json.resolve()
@@ -404,7 +577,7 @@ def main() -> int:
         label2id=label2id,
     )
     _LOG.info("Evaluating base model at %s", base_dir)
-    base_metrics, base_name_or_path = _run_eval(
+    base_metrics, base_name_or_path, y_true_b, y_pred_b, _texts_b = _run_eval(
         str(base_dir),
         ds,
         num_labels=num_labels,
@@ -421,6 +594,11 @@ def main() -> int:
     )
     _LOG.info("Base metrics: %s", base_metrics)
 
+    per_label_base = _per_label_metrics(
+        y_true_b, y_pred_b, num_labels=num_labels, id2label=id2label
+    )
+    misclassified_base = _misclassified_samples(texts, y_true_b, y_pred_b, id2label)
+
     deltas = _metric_deltas(metrics, base_metrics)
     compare_payload = {
         "finetuned": _json_safe(dict(metrics)),
@@ -428,6 +606,10 @@ def main() -> int:
         "deltas_finetuned_minus_base": _json_safe(deltas),
         "base_model_id": args.base_model_id,
         "base_model_dir": str(base_dir),
+        "finetuned_per_label_metrics": _json_safe(per_label_ft),
+        "base_per_label_metrics": _json_safe(per_label_base),
+        "finetuned_misclassified_samples": _json_safe(misclassified_ft),
+        "base_misclassified_samples": _json_safe(misclassified_base),
     }
 
     payload = {
@@ -441,11 +623,15 @@ def main() -> int:
             label2id=label2id,
             ft_name_or_path=ft_name_or_path,
             metrics=dict(metrics),
+            per_label_metrics=per_label_ft,
+            misclassified_samples=misclassified_ft,
         ),
         "base_model_id": args.base_model_id,
         "base_model_dir": str(base_dir),
         "base_config_name_or_path": base_name_or_path,
         "base_metrics": _json_safe(dict(base_metrics)),
+        "base_per_label_metrics": _json_safe(per_label_base),
+        "base_misclassified_samples": _json_safe(misclassified_base),
         "metric_deltas_finetuned_minus_base": _json_safe(deltas),
         "compare": compare_payload,
     }
