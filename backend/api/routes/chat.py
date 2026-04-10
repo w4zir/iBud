@@ -12,9 +12,18 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ...agent.orchestrator import classify_intent_only, run_orchestrated_agent
+from ...agent.orchestrator import (
+    classify_intent_only,
+    run_orchestrated_agent,
+    run_simple_chat_agent,
+)
 from ...agent.state import AgentState
-from ...config import log_event
+from ...config import (
+    get_default_company,
+    get_default_dataset,
+    is_planning_enabled,
+    log_event,
+)
 from ...db.models import Message, Session
 from ...db.postgres import get_session
 from ...db.redis_client import get_client as get_redis_client
@@ -28,6 +37,7 @@ from ...observability.prometheus_metrics import (
 from ...observability.langsmith_tracer import chat_request_trace
 from ...observability.otel import get_current_trace_ids, get_tracer
 from ...observability.warehouse import record_outcome, update_session_analytics
+from ...rag.query_classifier import get_query_classifier
 from ..models import (
     ChatRequest,
     ChatResponse,
@@ -159,7 +169,9 @@ async def _run_agent_flow(
     root_span = None
     request_status = "ok"
     try:
-        session = await _get_or_create_session(db, req.session_id, req.user_id, req.company)
+        resolved_company = req.company or get_default_company()
+        resolved_dataset = req.dataset or get_default_dataset()
+        session = await _get_or_create_session(db, req.session_id, req.user_id, resolved_company)
         tracer = get_tracer()
         if tracer is not None:
             span_ctx = tracer.start_as_current_span("conversation")
@@ -191,7 +203,7 @@ async def _run_agent_flow(
 
         cache_hit = False
         cached_payload: Optional[Dict[str, Any]] = None
-        cache_key = _build_chat_cache_key(str(session.id), req.user_id, req.message, req.company)
+        cache_key = _build_chat_cache_key(str(session.id), req.user_id, req.message, resolved_company)
         if use_cache:
             # First try Redis; on error, fall back to local in-memory cache.
             try:
@@ -253,15 +265,50 @@ async def _run_agent_flow(
             "user_id": req.user_id,
             "request_id": request_id,
             "messages": history,
-            # Default to "wixqa" when the client does not explicitly choose a dataset.
-            "dataset": (req.dataset or "wixqa").lower(),
-            "company_id": req.company,
+            "dataset": resolved_dataset.lower(),
+            "company_id": resolved_company,
         }
+        routing_query_type = "issue"
+        classifier_label: Optional[str] = None
+        classifier_confidence: Optional[float] = None
+        try:
+            qc = get_query_classifier()
+            qc_result = qc.classify(req.message)
+            routing_query_type = "issue" if qc_result.is_issue else "non_issue"
+            classifier_label = qc_result.label
+            classifier_confidence = qc_result.confidence
+        except Exception as exc:
+            # Conservative fallback: treat unknown classification as issue.
+            log_event(
+                "chat",
+                "query_classifier_failed",
+                request_id=request_id,
+                session_id=str(session.id),
+                error=str(exc),
+            )
+        state["query_type"] = routing_query_type
         trace_id, _ = get_current_trace_ids()
         if trace_id:
             state["trace_id"] = trace_id
+        planning_enabled = is_planning_enabled()
+        use_simple_chat = routing_query_type != "issue" or not planning_enabled
+        route_name = "simple_chat" if use_simple_chat else "planner"
+        log_event(
+            "chat",
+            "route_selected",
+            request_id=request_id,
+            session_id=str(session.id),
+            query_type=routing_query_type,
+            planning_enabled=planning_enabled,
+            route=route_name,
+            classifier_label=classifier_label,
+            classifier_confidence=classifier_confidence,
+        )
         async with chat_request_trace(state):
-            final_state = await run_orchestrated_agent(state)
+            if use_simple_chat:
+                final_state = await run_simple_chat_agent(state)
+            else:
+                final_state = await run_orchestrated_agent(state)
         response_text = final_state.get("final_response") or ""
 
         log_event(

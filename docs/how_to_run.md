@@ -5,7 +5,7 @@
 - [1. Environment setup](#1-environment-setup)
 - [2. Start Docker services](#2-start-docker-services)
   - [2.1 Core data infra only (Postgres + Redis + Elasticsearch)](#21-core-data-infra-only-postgres--redis--elasticsearch)
-  - [2.2 Backend API only (requires data infra + Ollama)](#22-backend-api-only-requires-data-infra--ollama)
+  - [2.2 Backend API only (requires data infra + local Ollama)](#22-backend-api-only-requires-data-infra--local-ollama)
   - [2.3 Frontend only (requires backend)](#23-frontend-only-requires-backend)
   - [2.4 Full stack (backend + frontend + infra)](#24-full-stack-backend--frontend--infra)
   - [2.5 Full stack with observability](#25-full-stack-with-observability)
@@ -35,9 +35,9 @@
 
 ## Overview
 
-This document explains how to bring up the stack with Docker services, ingest the **WixQA** KB corpus into **Elasticsearch** (with Postgres kept for relational data), seed mock orders, run the agentic backend API, use the Streamlit UI, and enable observability and evaluation.
+This document explains how to bring up the stack with Docker services, including the dedicated ModernBERT BentoML classifier service, ingest the **WixQA** KB corpus into **Elasticsearch** (with Postgres kept for relational data), seed mock orders, run the agentic backend API, use the Streamlit UI, and enable observability and evaluation.
 
-The primary workflow uses Docker Compose for infrastructure (Postgres, Redis, Elasticsearch, Ollama, backend, frontend, Prometheus, Grafana) and a local Python virtual environment for management commands and tests.
+The primary workflow uses Docker Compose for infrastructure (Postgres, Redis, Elasticsearch, ModernBERT classifier, backend, frontend, Prometheus, Grafana) and a local Python virtual environment for management commands and tests, with Ollama running locally on the host machine.
 
 ## Prerequisites
 
@@ -70,6 +70,7 @@ The primary workflow uses Docker Compose for infrastructure (Postgres, Redis, El
    For Phase 1/2 with Ollama embeddings, set in `.env`:
 
    - `EMBEDDING_PROVIDER=ollama`
+   - `OLLAMA_BASE_URL=http://host.docker.internal:11434` (when backend runs in Docker and Ollama runs on host)
    - `EMBEDDING_MODEL_OLLAMA=nomic-embed-text`
    - `EMBEDDING_DIM=768`
    - `HF_DATASET_PRIMARY=Wix/WixQA`
@@ -91,8 +92,9 @@ Elasticsearch + retrieval settings:
 - `RERANK_TOP_K=5`
 
 ModernBERT query classification (issue vs non-issue pipeline routing):
-- `CLASSIFIER_MODEL=MoritzLaurer/ModernBERT-base-zeroshot-v2.0`
-- `CLASSIFIER_THRESHOLD=0.7`
+- `CLASSIFIER_BENTOML_URL=http://modernbert:3000/classify`
+- `CLASSIFIER_BENTOML_TIMEOUT_SECONDS=5`
+- `CLASSIFIER_THRESHOLD=0.7` (applied by the BentoML classifier service)
 
   **Backend structured logging:** Logs are emitted as JSON with stable fields (for example `request_id`, `session_id`, `user_id`, `intent`, `tool_name`, `status`, `latency_ms`, `error_type`). Set `DEBUG=true` in `.env` for debug-level events; default is `false` (INFO level) for normal runs.
 
@@ -113,10 +115,10 @@ You can start different slices of the system depending on what you are working o
 docker compose up -d postgres redis elasticsearch
 ```
 
-### 2.2 Backend API only (requires data infra + Ollama)
+### 2.2 Backend API only (requires data infra + ModernBERT service + local Ollama)
 
 ```powershell
-docker compose up -d postgres redis elasticsearch ollama backend
+docker compose up -d postgres redis elasticsearch modernbert backend
 ```
 
 Backend API will be available at `http://localhost:8000`.
@@ -124,7 +126,7 @@ Backend API will be available at `http://localhost:8000`.
 ### 2.3 Frontend only (requires backend)
 
 ```powershell
-docker compose up -d backend frontend
+docker compose up -d modernbert backend frontend
 ```
 
 Streamlit UI will be available at `http://localhost:8501`.
@@ -132,13 +134,13 @@ Streamlit UI will be available at `http://localhost:8501`.
 ### 2.4 Full stack (backend + frontend + infra)
 
 ```powershell
-docker compose up -d postgres redis elasticsearch ollama backend frontend
+docker compose up -d postgres redis elasticsearch modernbert backend frontend
 ```
 
 ### 2.5 Full stack with observability
 
 ```powershell
-docker compose up -d postgres redis elasticsearch ollama backend frontend prometheus grafana alertmanager
+docker compose up -d postgres redis elasticsearch modernbert backend frontend prometheus grafana alertmanager
 ```
 
 Verify services:
@@ -147,15 +149,15 @@ Verify services:
 docker compose ps
 ```
 
-You should see at least `postgres`, `redis`, `elasticsearch`, `ollama`, `backend`, and `frontend` in `Up` state; for observability, also `prometheus`, `grafana`, and `alertmanager`.
+You should see at least `postgres`, `redis`, `elasticsearch`, `modernbert`, `backend`, and `frontend` in `Up` state; for observability, also `prometheus`, `grafana`, and `alertmanager`.
 
 ## 3. Prepare Ollama models (for embeddings)
 
-Inside the Ollama container:
+On your host machine (outside Docker), with Ollama running locally:
 
 ```powershell
-docker compose exec ollama ollama pull llama3.2
-docker compose exec ollama ollama pull nomic-embed-text
+ollama pull llama3.2
+ollama pull nomic-embed-text
 ```
 
 Optionally, pull a larger model for the planner and set `OLLAMA_PLANNER_MODEL` in `.env` (e.g. `llama3.1:70b`).
@@ -171,16 +173,16 @@ You can override these in `.env` as needed.
 
 ## 3.3 Query classification routing (ModernBERT)
 
-Before the planner runs, the backend uses a ModernBERT zero-shot classifier to
-route the query into one of two pipelines:
+Before the planner runs, the backend calls a dedicated BentoML service that hosts the fine-tuned ModernBERT classifier to route the query into one of two pipelines:
 
 - `issue` pipeline: allows order/return tools in addition to KB search
 - `non_issue` pipeline: restricts tools to KB/FAQ search only
 
 Configure via:
 
-- `CLASSIFIER_MODEL` (default `MoritzLaurer/ModernBERT-base-zeroshot-v2.0`)
-- `CLASSIFIER_THRESHOLD` (default `0.7`)
+- `CLASSIFIER_BENTOML_URL` (default `http://modernbert:3000/classify` in Docker)
+- `CLASSIFIER_BENTOML_TIMEOUT_SECONDS` (default `5`)
+- `CLASSIFIER_THRESHOLD` (default `0.7`, read by the classifier service)
 
 ## 3.4 External human handoff integration (optional)
 
@@ -442,10 +444,10 @@ curl http://localhost:8000/admin/remediation/history?hours=24
 
 ## 8. Quick verification checklist
 
-- **Core services**: `docker compose up -d` and `docker compose ps` show `postgres`, `redis`, `ollama`, `backend`, and `frontend` as `Up`.
+- **Core services**: `docker compose up -d` and `docker compose ps` show `postgres`, `redis`, `elasticsearch`, `modernbert`, `backend`, and `frontend` as `Up`.
 - **Ingestion**: `docker compose exec -T backend python -m backend.rag.ingest_wixqa` completes with a non-zero document count.
 - **Seeding**: `docker compose exec -T backend python /app/scripts/seed_mock_data.py` completes with a non-zero orders count.
-- **Agent API**: `curl http://localhost:8000/health` returns a JSON object with `status`, `postgres`, `redis`, and `ollama` fields.
+- **Agent API**: `curl http://localhost:8000/health` returns a JSON object with `status`, `postgres`, `redis`, `ollama`, and `classifier` fields.
 - **UI**: navigate to `http://localhost:8501` and send a chat message; you should receive a model response and (when available) sources/tool activity.
 - **Metrics**: Prometheus shows `backend` target as `UP` and `/metrics` exposes Phase 6 counters/histograms.
 - **Traces**: with LangSmith env vars set, new chats appear as traces in the LangSmith project.

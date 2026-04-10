@@ -26,17 +26,21 @@ services:
     image: redis:7-alpine
     ports: ["6379:6379"]
 
-  ollama:
-    image: ollama/ollama
-    ports: ["11434:11434"]
-    volumes: ["ollama_models:/root/.ollama"]
-    # Uncomment for GPU: deploy: { resources: { reservations: { devices: [{ capabilities: [gpu] }] } } }
+  modernbert:
+    build: ./services/modernbert_bento
+    env_file: .env
+    environment:
+      MODERNBERT_MODEL_DIR: /models/modernbert_finetuned
+    volumes:
+      - ./training/models/modernbert finedtuned:/models/modernbert_finetuned:ro
 
   backend:
     build: ./backend
     ports: ["8000:8000"]
     env_file: .env
-    depends_on: [postgres, elasticsearch, redis, ollama]
+    environment:
+      CLASSIFIER_BENTOML_URL: http://modernbert:3000/classify
+    depends_on: [postgres, elasticsearch, redis, modernbert]
     volumes:
       - ./backend:/app/backend
       - ./scripts:/app/scripts
@@ -70,5 +74,4 @@ services:
 
 volumes:
   pgdata:
-  ollama_models:
   esdata:

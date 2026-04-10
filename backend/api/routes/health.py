@@ -22,6 +22,7 @@ async def health(db: AsyncSession = Depends(get_session)) -> HealthResponse:
     postgres_ok = False
     redis_ok = False
     ollama_ok = False
+    classifier_ok = False
 
     try:
         await db.execute(text("SELECT 1"))
@@ -44,6 +45,15 @@ async def health(db: AsyncSession = Depends(get_session)) -> HealthResponse:
     except Exception:
         ollama_ok = False
 
+    classifier_url = os.getenv("CLASSIFIER_BENTOML_URL", "").strip()
+    if classifier_url:
+        try:
+            async with httpx.AsyncClient(timeout=2.0) as client:
+                resp = await client.post(classifier_url, json={"text": "health"})
+                classifier_ok = resp.status_code == 200
+        except Exception:
+            classifier_ok = False
+
     status = "ok" if postgres_ok and redis_ok else "degraded"
 
     try:
@@ -56,6 +66,7 @@ async def health(db: AsyncSession = Depends(get_session)) -> HealthResponse:
         postgres=postgres_ok,
         redis=redis_ok,
         ollama=ollama_ok,
+        classifier=classifier_ok,
     )
 
 

@@ -15,14 +15,16 @@ Google Colab (GPU runtime) — minimal setup::
     # Option B: mount Drive and point --train-file / --eval-file to your paths
 
     !python training/scripts/train_modernbert.py \\
-        --train-file training/data/train.jsonl \\
-        --eval-file training/data/eval.jsonl \\
-        --output-dir /content/drive/MyDrive/iBud-runs/modernbert-issue
+        --train-file training/data/bittext_binary/train.jsonl \\
+        --eval-file training/data/bittext_binary/eval.jsonl \\
+        --output-dir /content/drive/MyDrive/iBud-runs/modernbert-finetuned
 
 Local (from repo root), using backend venv if available::
 
     pip install -r training/requirements-train.txt
-    python training/scripts/train_modernbert.py
+    python training/scripts/train_modernbert.py \\
+        --train-file training/data/bittext_binary/train.jsonl \\
+        --eval-file training/data/bittext_binary/eval.jsonl
 
 Default base model: ``MoritzLaurer/ModernBERT-base-zeroshot-v2.0`` (encoder; use
 ``ignore_mismatched_sizes=True`` if the classification head shape differs).
@@ -72,7 +74,7 @@ _REPO_TRAINING = Path(__file__).resolve().parent.parent
 _DEFAULT_TRAIN = _REPO_TRAINING / "data" / "train.jsonl"
 _DEFAULT_EVAL = _REPO_TRAINING / "data" / "eval.jsonl"
 _DEFAULT_MODEL = "MoritzLaurer/ModernBERT-base-zeroshot-v2.0"
-_DEFAULT_OUTPUT_DIR = Path("modernbert-large-is-issue")
+_DEFAULT_OUTPUT_DIR = _REPO_TRAINING / "models" / "modernbert_finetuned"
 
 ID2LABEL = {0: "no_issue", 1: "issue"}
 LABEL2ID = {v: k for k, v in ID2LABEL.items()}
@@ -110,13 +112,19 @@ def _parse_args() -> argparse.Namespace:
         "--train-file",
         type=Path,
         default=_DEFAULT_TRAIN,
-        help="Path to train.jsonl.",
+        help=(
+            "Path to train.jsonl. "
+            "Example: training/data/bittext_binary/train.jsonl."
+        ),
     )
     p.add_argument(
         "--eval-file",
         type=Path,
         default=_DEFAULT_EVAL,
-        help="Path to eval JSONL (e.g. eval.jsonl from create_dataset.py).",
+        help=(
+            "Path to eval JSONL. "
+            "Example: training/data/bittext_binary/eval.jsonl."
+        ),
     )
     p.add_argument(
         "--output-dir",
@@ -143,9 +151,19 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--warmup-ratio", type=float, default=0.05)
     p.add_argument("--max-length", type=int, default=256)
     p.add_argument("--seed", type=int, default=42)
-    p.add_argument("--max-steps", type=int, default=-1, help="If >0, overrides num_epochs.")
+    p.add_argument(
+        "--max-steps",
+        type=int,
+        default=-1,
+        help="If >0, overrides --num-epochs and trains for a fixed number of update steps.",
+    )
     p.add_argument("--eval-steps", type=int, default=500)
-    p.add_argument("--save-total-limit", type=int, default=2)
+    p.add_argument(
+        "--save-total-limit",
+        type=int,
+        default=2,
+        help="Checkpoint retention limit. Use 2 to keep best + last checkpoints.",
+    )
     p.add_argument("--early-stopping-patience", type=int, default=3)
     p.add_argument("--fp16", action="store_true", help="Use fp16 (CUDA).")
     p.add_argument(

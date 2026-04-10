@@ -33,7 +33,7 @@ From the project root:
 3. **Start core services**
 
    ```powershell
-   docker compose up -d postgres redis ollama backend frontend prometheus grafana
+   docker compose up -d postgres redis elasticsearch modernbert backend frontend prometheus grafana
    ```
 
 4. **Ingest data and seed mocks**

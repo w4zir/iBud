@@ -26,12 +26,6 @@ def _init_session_state() -> None:
         st.session_state.show_sources = True
     if "llm_provider" not in st.session_state:
         st.session_state.llm_provider = os.getenv("LLM_PROVIDER", "ollama")
-    if "dataset" not in st.session_state:
-        # Default KB dataset; matches Document.source="wixqa".
-        st.session_state.dataset = "wixqa"
-    if "company" not in st.session_state:
-        # Default company identifier; can be overridden via sidebar.
-        st.session_state.company = "default"
 
 
 def _render_sidebar() -> None:
@@ -40,33 +34,6 @@ def _render_sidebar() -> None:
     st.session_state.user_id = user_id or st.session_state.user_id
 
     st.sidebar.markdown(f"**LLM Provider:** `{st.session_state.llm_provider}`")
-
-    st.sidebar.markdown("---")
-    dataset_label = {
-        "wixqa": "WixQA KB (articles)",
-        "bitext": "Bitext QA pairs",
-        "foodpanda": "Foodpanda policies",
-    }
-    dataset_key = st.sidebar.selectbox(
-        "Knowledge base dataset",
-        options=list(dataset_label.keys()),
-        format_func=lambda k: dataset_label.get(k, k),
-        index=list(dataset_label.keys()).index(st.session_state.get("dataset", "wixqa")),
-    )
-    st.session_state.dataset = dataset_key
-
-    st.sidebar.markdown("---")
-    company_label = {
-        "default": "Default demo company",
-        "foodpanda": "Foodpanda",
-    }
-    company_key = st.sidebar.selectbox(
-        "Company",
-        options=list(company_label.keys()),
-        format_func=lambda k: company_label.get(k, k),
-        index=list(company_label.keys()).index(st.session_state.get("company", "default")),
-    )
-    st.session_state.company = company_key
 
     new_session = st.sidebar.button("Start New Session")
     if new_session:
@@ -102,8 +69,6 @@ def _call_chat_api(
         "session_id": session_id,
         "user_id": user_id,
         "message": message,
-        "dataset": st.session_state.get("dataset", "wixqa"),
-        "company": st.session_state.get("company", "default"),
     }
     resp = requests.post(f"{base_url}/chat/", json=payload, timeout=60)
     resp.raise_for_status()

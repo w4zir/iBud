@@ -7,13 +7,12 @@ import time
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
-from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
 from ..config import get_llm, log_event
 from ..observability.langsmith_tracer import build_stage_run_config, tool_trace
 from ..observability.otel import get_tracer
 from ..observability.warehouse import record_span
-from ..rag.query_classifier import get_query_classifier
 from ..tools.faq_search import faq_search_tool
 from ..tools.order_lookup import order_lookup_tool
 from ..tools.return_initiate import return_initiate_tool
@@ -63,6 +62,36 @@ def _get_latest_user_message(state: AgentState) -> str:
         if msg.get("role") == "user":
             return str(msg.get("content", ""))
     return ""
+
+
+def _history_as_messages(state: AgentState, *, include_system_prefix: bool = False) -> List[Any]:
+    msgs: List[Any] = []
+    for msg in state.get("messages") or []:
+        role = str(msg.get("role") or "").strip().lower()
+        content = str(msg.get("content") or "")
+        if not content:
+            continue
+        if role == "user":
+            msgs.append(HumanMessage(content=content))
+        elif role == "assistant":
+            msgs.append(AIMessage(content=content))
+        elif include_system_prefix:
+            msgs.append(SystemMessage(content=content))
+    return msgs
+
+
+def _history_as_text(state: AgentState) -> str:
+    lines: List[str] = []
+    for msg in state.get("messages") or []:
+        role = str(msg.get("role") or "").strip().lower()
+        content = str(msg.get("content") or "").strip()
+        if not content:
+            continue
+        if role == "assistant":
+            lines.append(f"assistant: {content}")
+        else:
+            lines.append(f"user: {content}")
+    return "\n".join(lines)
 
 
 def _ensure_workflow_state(state: AgentState) -> Dict[str, Any]:
@@ -267,6 +296,14 @@ Return plain text only.
 """.strip()
 
 
+SYSTEM_SIMPLE_CHAT = """
+You are a concise and helpful e-commerce customer support assistant.
+Use the full conversation history for continuity and respond directly to the latest user message.
+If the question is unclear, ask a brief clarifying question.
+Return plain text only.
+""".strip()
+
+
 @dataclass(frozen=True)
 class EscalationDecision:
     should_escalate: bool
@@ -437,6 +474,36 @@ async def _execute_action(
             return ToolResult(name=action, success=False, result={}, error=str(exc))
 
 
+async def run_simple_chat_agent(state: AgentState) -> AgentState:
+    """
+    Direct conversation response path (no planner/evaluator/executor).
+    Always uses persisted session history as LLM context.
+    """
+    start = time.perf_counter()
+    llm = get_llm(role="small")  # type: ignore[call-arg]
+    convo = _history_as_messages(state)
+    if not convo:
+        user_text = _get_latest_user_message(state)
+        convo = [HumanMessage(content=user_text)] if user_text else []
+    final = await llm.ainvoke(
+        [SystemMessage(content=SYSTEM_SIMPLE_CHAT), *convo],
+        config=build_stage_run_config(state, "agent.simple_chat"),
+    )
+    answer = (final.content or "").strip()
+    state["final_response"] = answer
+    state["should_escalate"] = False
+    wf = _ensure_workflow_state(state)
+    wf["route"] = "simple_chat"
+    await _record_span_nonblocking(
+        state,
+        "simple_chat",
+        latency_ms=(time.perf_counter() - start) * 1000.0,
+        response_len=len(answer),
+        status="ok",
+    )
+    return state
+
+
 async def run_orchestrated_agent(state: AgentState) -> AgentState:
     """
     New runtime pipeline:
@@ -452,54 +519,18 @@ async def run_orchestrated_agent(state: AgentState) -> AgentState:
     tracer = get_tracer()
     user_text = _get_latest_user_message(state)
 
-    # 0) Query type classifier (ModernBERT): coarse "issue" vs "non-issue" routing.
-    query_type: str = "issue"
-    classifier_confidence: Optional[float] = None
-    classifier_label: Optional[str] = None
-    try:
-        qc = get_query_classifier()
-        start = time.perf_counter()
-        qc_res = qc.classify(user_text)
-        classifier_confidence = qc_res.confidence
-        classifier_label = qc_res.label
-        query_type = "issue" if qc_res.is_issue else "non_issue"
-        state["query_type"] = query_type  # type: ignore[assignment]
-        wf["query_classifier"] = {
-            "label": classifier_label,
-            "confidence": classifier_confidence,
-            "is_issue": qc_res.is_issue,
-        }
-        await _record_span_nonblocking(
-            state,
-            "query_classifier",
-            latency_ms=(time.perf_counter() - start) * 1000.0,
-            query_type=query_type,
-            confidence=classifier_confidence,
-            label=classifier_label,
-            status="ok",
-        )
-    except Exception as exc:
-        # If the classifier fails for any reason, fall back to "issue" to avoid
-        # overly restricting tools.
-        state["query_type"] = query_type  # type: ignore[assignment]
-        wf["query_classifier_error"] = str(exc)
-        try:
-            await _record_span_nonblocking(
-                state,
-                "query_classifier",
-                latency_ms=0.0,
-                query_type=query_type,
-                status="error",
-                error=str(exc),
-            )
-        except Exception:
-            pass
+    # 0) Query type is expected to be set by chat route classification.
+    query_type: str = str(state.get("query_type") or "issue")
 
     # 1) Intent classifier (small model)
     start = time.perf_counter()
     classifier_llm = get_llm(role="small")  # type: ignore[call-arg]
+    history_text = _history_as_text(state)
     classifier_resp = await classifier_llm.ainvoke(
-        [SystemMessage(content=SYSTEM_INTENT_SENTIMENT), HumanMessage(content=user_text)],
+        [
+            SystemMessage(content=SYSTEM_INTENT_SENTIMENT),
+            HumanMessage(content=f"Conversation history:\n{history_text}\n\nLatest user message:\n{user_text}"),
+        ],
         config=build_stage_run_config(state, "agent.intent_classifier"),
     )
     raw_classifier = (classifier_resp.content or "").strip()
@@ -554,6 +585,7 @@ async def run_orchestrated_agent(state: AgentState) -> AgentState:
                 "intent": intent,
                 "query_type": query_type,
                 "user_request": user_text,
+                "chat_history": history_text,
                 "cycle_count": cycle,
                 "previous_feedback": plan_feedback or validator_feedback or "",
             },
@@ -601,7 +633,7 @@ async def run_orchestrated_agent(state: AgentState) -> AgentState:
             continue
 
         evaluator_input = json.dumps(
-            {"user_request": user_text, "plan": plan},
+            {"user_request": user_text, "chat_history": history_text, "plan": plan},
             ensure_ascii=False,
         )
         evaluator_resp = await evaluator_llm.ainvoke(
@@ -705,7 +737,7 @@ async def run_orchestrated_agent(state: AgentState) -> AgentState:
         start = time.perf_counter()
         validator_llm = get_llm(role="small")  # type: ignore[call-arg]
         validator_input = json.dumps(
-            {"plan": plan, "result": execution_results},
+            {"chat_history": history_text, "plan": plan, "result": execution_results},
             ensure_ascii=False,
         )
         validator_resp = await validator_llm.ainvoke(
@@ -747,7 +779,10 @@ async def run_orchestrated_agent(state: AgentState) -> AgentState:
     # 6) Response generator (small model)
     start = time.perf_counter()
     resp_llm = get_llm(role="small")  # type: ignore[call-arg]
-    gen_input = json.dumps({"plan": plan, "result": execution_results}, ensure_ascii=False)
+    gen_input = json.dumps(
+        {"chat_history": history_text, "plan": plan, "result": execution_results},
+        ensure_ascii=False,
+    )
     final = await resp_llm.ainvoke(
         [SystemMessage(content=SYSTEM_RESPONSE_GENERATOR), HumanMessage(content=gen_input)],
         config=build_stage_run_config(state, "agent.response_generator"),
@@ -790,8 +825,12 @@ async def classify_intent_only(state: AgentState) -> AgentState:
     user_text = _get_latest_user_message(state)
     start = time.perf_counter()
     llm = get_llm(role="small")  # type: ignore[call-arg]
+    history_text = _history_as_text(state)
     resp = await llm.ainvoke(
-        [SystemMessage(content=SYSTEM_INTENT_SENTIMENT), HumanMessage(content=user_text)],
+        [
+            SystemMessage(content=SYSTEM_INTENT_SENTIMENT),
+            HumanMessage(content=f"Conversation history:\n{history_text}\n\nLatest user message:\n{user_text}"),
+        ],
         config=build_stage_run_config(state, "agent.intent_classifier"),
     )
     raw = (resp.content or "").strip()
@@ -891,5 +930,5 @@ async def _handle_escalation(state: AgentState, *, reason: str) -> AgentState:
     return state
 
 
-__all__ = ["run_orchestrated_agent", "classify_intent_only"]
+__all__ = ["run_simple_chat_agent", "run_orchestrated_agent", "classify_intent_only"]
 

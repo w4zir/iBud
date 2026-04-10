@@ -10,10 +10,10 @@ class ChatRequest(BaseModel):
     session_id: Optional[str] = None
     user_id: str
     message: str
-    # Optional dataset key for retrieval (e.g. "wixqa", "bitext").
-    dataset: Optional[str] = "wixqa"
-    # Required company identifier for scoping (e.g. "foodpanda").
-    company: str
+    # Optional dataset key for retrieval (e.g. "wixqa", "bitext"). Defaults server-side.
+    dataset: Optional[str] = None
+    # Optional company identifier for scoping (e.g. "foodpanda"). Defaults server-side.
+    company: Optional[str] = None
 
 
 class IntentClassifyRequest(BaseModel):
@@ -72,6 +72,7 @@ class HealthResponse(BaseModel):
     postgres: bool
     redis: bool
     ollama: bool
+    classifier: bool
 
 
 __all__ = [

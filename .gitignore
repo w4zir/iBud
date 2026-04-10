@@ -208,6 +208,31 @@ evaluation/results/*.json
 training/data/
 training/models/
 datasets/
+
+# Large ML artifacts (avoid committing heavy files)
+**/checkpoint-*/
+**/checkpoints/
+*.safetensors
+*.ckpt
+*.pt
+*.pth
+*.onnx
+*.h5
+*.hdf5
+
+# Dataset artifacts / exports
+*.parquet
+*.feather
+*.arrow
+*.npz
+*.npy
+*.pkl
+*.pickle
+*.joblib
+*.csv.gz
+*.jsonl.gz
+data/**/raw/
+data/**/processed/
 # Marimo
 marimo/_static/
 marimo/_lsp/

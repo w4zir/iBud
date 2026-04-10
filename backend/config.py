@@ -12,6 +12,28 @@ def is_debug() -> bool:
     return raw in ("true", "1", "yes")
 
 
+def _is_truthy(name: str, default: bool = False) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() in ("true", "1", "yes", "on")
+
+
+def is_planning_enabled() -> bool:
+    """Return True when planner pipeline should be used for issue routes."""
+    return _is_truthy("AGENT_PLANNING_ENABLED", default=True)
+
+
+def get_default_dataset() -> str:
+    """Default dataset used when the client does not provide one."""
+    return (os.getenv("DEFAULT_DATASET", "wixqa") or "wixqa").strip().lower()
+
+
+def get_default_company() -> str:
+    """Default company used when the client does not provide one."""
+    return (os.getenv("DEFAULT_COMPANY", "default") or "default").strip()
+
+
 class _StructuredFormatter(logging.Formatter):
     REDACT_KEYS = {"password", "token", "api_key", "secret", "authorization"}
 
@@ -168,14 +190,3 @@ def get_rerank_top_k() -> int:
         return 5
 
 
-def get_classifier_model() -> str:
-    return os.getenv(
-        "CLASSIFIER_MODEL", "MoritzLaurer/ModernBERT-base-zeroshot-v2.0"
-    )
-
-
-def get_classifier_threshold() -> float:
-    try:
-        return float(os.getenv("CLASSIFIER_THRESHOLD", "0.7"))
-    except ValueError:
-        return 0.7
