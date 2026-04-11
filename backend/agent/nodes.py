@@ -9,7 +9,7 @@ from typing import Any, Dict, List
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
-from ..config import get_llm, log_event
+from ..config import get_llm, is_human_escalation_enabled, log_event
 from ..observability.prometheus_metrics import (
     error_count,
     escalations,
@@ -575,6 +575,36 @@ async def synthesize_response(state: AgentState) -> AgentState:
 async def check_escalation(state: AgentState) -> AgentState:
     start = time.perf_counter()
     span_ctx, otel_span = _start_otel_span(state, "outcome_decision")
+    if not is_human_escalation_enabled():
+        next_state = dict(state)
+        next_state["should_escalate"] = False
+        try:
+            task_outcome.labels(outcome="resolved_without_escalation").inc()
+        except Exception:
+            pass
+        log_event(
+            "agent",
+            "check_escalation",
+            session_id=state.get("session_id"),
+            request_id=state.get("request_id"),
+            should_escalate=False,
+            skipped="human_escalation_disabled",
+        )
+        _record_node_span(
+            state,
+            "check_escalation",
+            latency_ms=(time.perf_counter() - start) * 1000.0,
+            should_escalate=False,
+            status="ok",
+        )
+        _finish_otel_span(
+            span_ctx,
+            otel_span,
+            escalated=False,
+            latency_ms=(time.perf_counter() - start) * 1000.0,
+        )
+        return next_state
+
     llm = get_llm()
     user_text = _get_latest_user_message(state)
     tool_results = state.get("tool_results") or []
@@ -636,6 +666,30 @@ async def check_escalation(state: AgentState) -> AgentState:
 async def create_ticket(state: AgentState) -> AgentState:
     start = time.perf_counter()
     span_ctx, otel_span = _start_otel_span(state, "outcome")
+    if not is_human_escalation_enabled():
+        log_event(
+            "agent",
+            "create_ticket_skipped",
+            session_id=state.get("session_id"),
+            request_id=state.get("request_id"),
+            skipped="human_escalation_disabled",
+        )
+        _record_node_span(
+            state,
+            "create_ticket",
+            latency_ms=(time.perf_counter() - start) * 1000.0,
+            skipped="human_escalation_disabled",
+            status="ok",
+        )
+        _finish_otel_span(
+            span_ctx,
+            otel_span,
+            completed=True,
+            escalated=False,
+            latency_ms=(time.perf_counter() - start) * 1000.0,
+        )
+        return state
+
     if not state.get("should_escalate"):
         log_event(
             "agent",

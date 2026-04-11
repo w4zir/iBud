@@ -5,11 +5,11 @@ import os
 import re
 import time
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Tuple
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
-from ..config import get_llm, log_event
+from ..config import get_llm, is_human_escalation_enabled, log_event
 from ..observability.langsmith_tracer import build_stage_run_config, tool_trace
 from ..observability.otel import get_tracer
 from ..observability.warehouse import record_span
@@ -19,6 +19,8 @@ from ..tools.return_initiate import return_initiate_tool
 from ..tools.ticket_create import ticket_create_tool
 from ..tools.human_handoff import human_handoff_tool
 from .state import AgentState, ToolResult
+
+StepEmitter = Callable[[str, str, Optional[str], str], Awaitable[None]]
 
 
 def _get_int_env(name: str, default: int) -> int:
@@ -92,6 +94,22 @@ def _history_as_text(state: AgentState) -> str:
         else:
             lines.append(f"user: {content}")
     return "\n".join(lines)
+
+
+async def _emit_step(
+    step_emitter: Optional[StepEmitter],
+    step_id: str,
+    label: str,
+    detail: Optional[str] = None,
+    status: str = "info",
+) -> None:
+    if step_emitter is None:
+        return
+    try:
+        await step_emitter(step_id, label, detail, status)
+    except Exception:
+        # Step emission is best-effort and must not break agent execution.
+        return
 
 
 def _ensure_workflow_state(state: AgentState) -> Dict[str, Any]:
@@ -318,6 +336,8 @@ def _decide_escalation(
     user_requested_human: bool,
     planner_cycle_count: int,
 ) -> EscalationDecision:
+    if not is_human_escalation_enabled():
+        return EscalationDecision(False, "human_escalation_disabled")
     if user_requested_human:
         return EscalationDecision(True, "user_requested_human")
     if _is_angry_text(user_text):
@@ -474,12 +494,23 @@ async def _execute_action(
             return ToolResult(name=action, success=False, result={}, error=str(exc))
 
 
-async def run_simple_chat_agent(state: AgentState) -> AgentState:
+async def run_simple_chat_agent(
+    state: AgentState,
+    *,
+    step_emitter: Optional[StepEmitter] = None,
+) -> AgentState:
     """
     Direct conversation response path (no planner/evaluator/executor).
     Always uses persisted session history as LLM context.
     """
     start = time.perf_counter()
+    await _emit_step(
+        step_emitter,
+        "simple_chat_start",
+        "Agent generating direct response",
+        "Using quick path without planner",
+        "started",
+    )
     llm = get_llm(role="small")  # type: ignore[call-arg]
     convo = _history_as_messages(state)
     if not convo:
@@ -501,10 +532,21 @@ async def run_simple_chat_agent(state: AgentState) -> AgentState:
         response_len=len(answer),
         status="ok",
     )
+    await _emit_step(
+        step_emitter,
+        "simple_chat_done",
+        "Direct response ready",
+        "Prepared final assistant response",
+        "completed",
+    )
     return state
 
 
-async def run_orchestrated_agent(state: AgentState) -> AgentState:
+async def run_orchestrated_agent(
+    state: AgentState,
+    *,
+    step_emitter: Optional[StepEmitter] = None,
+) -> AgentState:
     """
     New runtime pipeline:
       intent_classifier -> planner -> evaluator -> workflow_engine -> executor -> validator -> response_generator
@@ -523,6 +565,13 @@ async def run_orchestrated_agent(state: AgentState) -> AgentState:
     query_type: str = str(state.get("query_type") or "issue")
 
     # 1) Intent classifier (small model)
+    await _emit_step(
+        step_emitter,
+        "intent_classifier_start",
+        "Classifying customer intent",
+        "Determining request type and sentiment",
+        "started",
+    )
     start = time.perf_counter()
     classifier_llm = get_llm(role="small")  # type: ignore[call-arg]
     history_text = _history_as_text(state)
@@ -552,6 +601,13 @@ async def run_orchestrated_agent(state: AgentState) -> AgentState:
         user_requested_human=user_requested_human,
         status="ok",
     )
+    await _emit_step(
+        step_emitter,
+        "intent_classifier_done",
+        "Intent classified",
+        f"Intent: {intent}, sentiment: {classifier_sent:.2f}",
+        "completed",
+    )
 
     # Early escalation check.
     decision = _decide_escalation(
@@ -562,7 +618,7 @@ async def run_orchestrated_agent(state: AgentState) -> AgentState:
         planner_cycle_count=_current_planner_cycle(state),
     )
     if decision.should_escalate:
-        return await _handle_escalation(state, reason=decision.reason)
+        return await _handle_escalation(state, reason=decision.reason, step_emitter=step_emitter)
 
     # Planner / evaluator / workflow / validator loops
     plan: Dict[str, Any] = {}
@@ -575,9 +631,20 @@ async def run_orchestrated_agent(state: AgentState) -> AgentState:
         # cycle guard + persisted counter
         cycle = _inc_planner_cycle(state)
         if cycle > PLANNER_MAX_CYCLES:
-            return await _handle_escalation(state, reason="planner_cycle_exceeded")
+            return await _handle_escalation(
+                state,
+                reason="planner_cycle_exceeded",
+                step_emitter=step_emitter,
+            )
 
         # 2) Planner (large model)
+        await _emit_step(
+            step_emitter,
+            "planner_start",
+            "Building action plan",
+            f"Planner cycle {cycle}",
+            "started",
+        )
         start = time.perf_counter()
         planner_llm = get_llm(role="planner")  # type: ignore[call-arg]
         planner_input = json.dumps(
@@ -615,8 +682,22 @@ async def run_orchestrated_agent(state: AgentState) -> AgentState:
             cycle_count=cycle,
             status="ok",
         )
+        await _emit_step(
+            step_emitter,
+            "planner_done",
+            "Plan created",
+            f"Generated {len(plan.get('tasks') or [])} task(s)",
+            "completed",
+        )
 
         # 3) Evaluator (small model)
+        await _emit_step(
+            step_emitter,
+            "evaluator_start",
+            "Checking plan quality",
+            "Validating schema and feasibility",
+            "started",
+        )
         start = time.perf_counter()
         evaluator_llm = get_llm(role="small")  # type: ignore[call-arg]
         schema_ok, schema_msg = _validate_plan_schema(plan, query_type=query_type)
@@ -629,6 +710,13 @@ async def run_orchestrated_agent(state: AgentState) -> AgentState:
                 plan_valid=False,
                 feedback=plan_feedback,
                 status="schema_invalid",
+            )
+            await _emit_step(
+                step_emitter,
+                "evaluator_schema_invalid",
+                "Plan validation failed",
+                "Adjusting plan and retrying",
+                "failed",
             )
             continue
 
@@ -653,9 +741,30 @@ async def run_orchestrated_agent(state: AgentState) -> AgentState:
             status="ok",
         )
         if not plan_valid:
+            await _emit_step(
+                step_emitter,
+                "evaluator_replan",
+                "Plan needs revision",
+                "Planner is generating an improved plan",
+                "info",
+            )
             continue
+        await _emit_step(
+            step_emitter,
+            "evaluator_done",
+            "Plan approved",
+            "Proceeding to execute tasks",
+            "completed",
+        )
 
         # 4) Workflow engine + executor (deterministic)
+        await _emit_step(
+            step_emitter,
+            "workflow_start",
+            "Executing plan tasks",
+            "Running deterministic tool actions",
+            "started",
+        )
         start = time.perf_counter()
         tasks = list(plan.get("tasks") or [])
         ordered = _toposort(tasks)
@@ -682,6 +791,13 @@ async def run_orchestrated_agent(state: AgentState) -> AgentState:
                 }
                 execution_results["tasks"].append(task_record)
                 execution_results["by_task_id"][task_id] = task_record
+                await _emit_step(
+                    step_emitter,
+                    f"task_blocked_{task_id}",
+                    f"Skipped task: {action}",
+                    "Blocked by failed dependency",
+                    "failed",
+                )
                 continue
 
             # Retry policy (simple fixed retries)
@@ -691,6 +807,13 @@ async def run_orchestrated_agent(state: AgentState) -> AgentState:
             last: ToolResult | None = None
             while attempt < max_attempts:
                 attempt += 1
+                await _emit_step(
+                    step_emitter,
+                    f"task_start_{task_id}_{attempt}",
+                    f"Running task: {action}",
+                    f"Attempt {attempt}",
+                    "started",
+                )
                 last = await _execute_action(
                     action,
                     params,
@@ -700,6 +823,13 @@ async def run_orchestrated_agent(state: AgentState) -> AgentState:
                     depends_on=deps,
                 )
                 if last.get("success"):
+                    await _emit_step(
+                        step_emitter,
+                        f"task_done_{task_id}",
+                        f"Task completed: {action}",
+                        "Tool action succeeded",
+                        "completed",
+                    )
                     break
                 # small backoff for transient errors
                 if attempt < max_attempts:
@@ -709,6 +839,14 @@ async def run_orchestrated_agent(state: AgentState) -> AgentState:
                         await asyncio.sleep((base_backoff_ms * attempt) / 1000.0)
                     except Exception:
                         pass
+            if not bool(last and last.get("success")):
+                await _emit_step(
+                    step_emitter,
+                    f"task_failed_{task_id}",
+                    f"Task failed: {action}",
+                    "Continuing with fallback behavior",
+                    "failed",
+                )
             task_record = {
                 "task_id": task_id,
                 "action": action,
@@ -732,8 +870,22 @@ async def run_orchestrated_agent(state: AgentState) -> AgentState:
             tasks_count=len(ordered),
             status="ok",
         )
+        await _emit_step(
+            step_emitter,
+            "workflow_done",
+            "Task execution complete",
+            f"Completed {len(ordered)} planned task(s)",
+            "completed",
+        )
 
         # 5) Validator (small model) - Plan + Result only
+        await _emit_step(
+            step_emitter,
+            "validator_start",
+            "Validating execution results",
+            "Checking if user request is fulfilled",
+            "started",
+        )
         start = time.perf_counter()
         validator_llm = get_llm(role="small")  # type: ignore[call-arg]
         validator_input = json.dumps(
@@ -759,6 +911,13 @@ async def run_orchestrated_agent(state: AgentState) -> AgentState:
             sentiment_score=validator_sent,
             status="ok",
         )
+        await _emit_step(
+            step_emitter,
+            "validator_done",
+            "Validation complete",
+            "Request resolved" if achieved else "Needs another planning pass",
+            "completed" if achieved else "info",
+        )
 
         decision = _decide_escalation(
             user_text=user_text,
@@ -768,7 +927,7 @@ async def run_orchestrated_agent(state: AgentState) -> AgentState:
             planner_cycle_count=_current_planner_cycle(state),
         )
         if decision.should_escalate:
-            return await _handle_escalation(state, reason=decision.reason)
+            return await _handle_escalation(state, reason=decision.reason, step_emitter=step_emitter)
 
         if achieved:
             break
@@ -777,6 +936,13 @@ async def run_orchestrated_agent(state: AgentState) -> AgentState:
         continue
 
     # 6) Response generator (small model)
+    await _emit_step(
+        step_emitter,
+        "response_generator_start",
+        "Drafting final response",
+        "Summarizing results for the customer",
+        "started",
+    )
     start = time.perf_counter()
     resp_llm = get_llm(role="small")  # type: ignore[call-arg]
     gen_input = json.dumps(
@@ -796,6 +962,13 @@ async def run_orchestrated_agent(state: AgentState) -> AgentState:
         latency_ms=(time.perf_counter() - start) * 1000.0,
         response_len=len(answer),
         status="ok",
+    )
+    await _emit_step(
+        step_emitter,
+        "response_generator_done",
+        "Final response ready",
+        "Sending answer to UI",
+        "completed",
     )
     log_event(
         "agent",
@@ -856,13 +1029,58 @@ async def classify_intent_only(state: AgentState) -> AgentState:
     return state
 
 
-async def _handle_escalation(state: AgentState, *, reason: str) -> AgentState:
+async def _handle_escalation(
+    state: AgentState,
+    *,
+    reason: str,
+    step_emitter: Optional[StepEmitter] = None,
+) -> AgentState:
     """
     Dual-write escalation:
     - external human handoff API/tool
     - local ticket persistence
     """
+    if not is_human_escalation_enabled():
+        wf = _ensure_workflow_state(state)
+        wf["escalation"] = {"reason": reason, "skipped": True, "human_escalation_disabled": True}
+        state["should_escalate"] = False
+        state["escalation_reason"] = reason
+        state["final_response"] = (
+            "I wasn't able to resolve this automatically. "
+            "Please try rephrasing your question or provide more details."
+        )
+        log_event(
+            "agent",
+            "human_escalation_skipped",
+            session_id=state.get("session_id"),
+            request_id=state.get("request_id"),
+            reason=reason,
+        )
+        await _emit_step(
+            step_emitter,
+            "escalation_skipped",
+            "Human escalation disabled",
+            f"Would have escalated: {reason}",
+            "completed",
+        )
+        await _record_span_nonblocking(
+            state,
+            "human_escalation",
+            latency_ms=0.0,
+            reason=reason,
+            skipped=True,
+            status="ok",
+        )
+        return state
+
     user_text = _get_latest_user_message(state)
+    await _emit_step(
+        step_emitter,
+        "escalation_start",
+        "Escalating to human support",
+        f"Reason: {reason}",
+        "started",
+    )
     plan = state.get("plan") or state.get("workflow_state", {}).get("last_plan") or {}
     result = state.get("execution_results") or {}
 
@@ -926,6 +1144,13 @@ async def _handle_escalation(state: AgentState, *, reason: str) -> AgentState:
         ticket_id=ticket_id,
         external_success=bool(external_status.get("success")),
         status="ok",
+    )
+    await _emit_step(
+        step_emitter,
+        "escalation_done",
+        "Escalation submitted",
+        f"Ticket created: {ticket_id}" if ticket_id else "Ticket creation pending",
+        "completed",
     )
     return state
 

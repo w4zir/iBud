@@ -1,31 +1,68 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
-from pydantic import BaseModel
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field
 
 
 class ChatRequest(BaseModel):
-    session_id: Optional[str] = None
-    user_id: str
-    message: str
+    model_config = ConfigDict(populate_by_name=True, extra="ignore")
+
+    session_id: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("session_id", "sessionId"),
+    )
+    user_id: str = Field(
+        default="anonymous",
+        validation_alias=AliasChoices("user_id", "userId"),
+    )
+    message: str = Field(
+        ...,
+        validation_alias=AliasChoices("message", "userMessage", "text", "query"),
+    )
     # Optional dataset key for retrieval (e.g. "wixqa", "bitext"). Defaults server-side.
-    dataset: Optional[str] = None
+    dataset: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("dataset", "datasetId"),
+    )
     # Optional company identifier for scoping (e.g. "foodpanda"). Defaults server-side.
-    company: Optional[str] = None
+    company: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("company", "companyId"),
+    )
 
 
 class IntentClassifyRequest(BaseModel):
-    session_id: Optional[str] = None
-    user_id: str
-    message: str
+    model_config = ConfigDict(populate_by_name=True, extra="ignore")
+
+    session_id: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("session_id", "sessionId"),
+    )
+    user_id: str = Field(
+        default="anonymous",
+        validation_alias=AliasChoices("user_id", "userId"),
+    )
+    message: str = Field(
+        ...,
+        validation_alias=AliasChoices("message", "userMessage", "text", "query"),
+    )
     # Optional dataset key for retrieval context (e.g. "wixqa", "bitext").
-    dataset: Optional[str] = "wixqa"
+    dataset: Optional[str] = Field(
+        default="wixqa",
+        validation_alias=AliasChoices("dataset", "datasetId"),
+    )
     # Optional prompt profile override for intent classification (e.g. "default", "bitext").
-    intent_prompt_profile: Optional[str] = None
+    intent_prompt_profile: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("intent_prompt_profile", "intentPromptProfile"),
+    )
     # Optional company identifier for scoping intent classification.
-    company: Optional[str] = None
+    company: Optional[str] = Field(
+        default=None,
+        validation_alias=AliasChoices("company", "companyId"),
+    )
 
 
 class Source(BaseModel):
@@ -47,6 +84,22 @@ class ChatResponse(BaseModel):
     # Optional classified intent for this turn/session; populated by the agent.
     intent: Optional[str] = None
     ticket_id: Optional[str] = None
+
+
+class AgentStepEvent(BaseModel):
+    id: str
+    label: str
+    detail: Optional[str] = None
+    status: Literal["started", "completed", "info", "failed"] = "info"
+    timestamp: datetime = Field(default_factory=datetime.utcnow)
+
+
+class AgentStreamEvent(BaseModel):
+    type: Literal["step", "final", "error"]
+    step: Optional[AgentStepEvent] = None
+    final: Optional[ChatResponse] = None
+    error: Optional[str] = None
+    metadata: Optional[Dict[str, Any]] = None
 
 
 class IntentClassifyResponse(BaseModel):
@@ -79,6 +132,8 @@ __all__ = [
     "ChatRequest",
     "IntentClassifyRequest",
     "ChatResponse",
+    "AgentStepEvent",
+    "AgentStreamEvent",
     "IntentClassifyResponse",
     "Source",
     "SessionMessage",

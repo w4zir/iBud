@@ -42,8 +42,9 @@ THRESHOLD = _get_threshold()
 @bentoml.service
 class ModernBertClassifier:
     @bentoml.api(route="/classify")
-    def classify(self, payload: Dict[str, Any]) -> Dict[str, Any]:
-        text = str((payload or {}).get("text") or "").strip()
+    def classify(self, text: str = "") -> Dict[str, Any]:
+        # Must be a top-level JSON field named "text" (not "payload"), or BentoML 1.2 expects nested input.
+        text = (text or "").strip()
         if not text:
             return {
                 "is_issue": False,

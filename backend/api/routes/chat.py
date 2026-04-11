@@ -3,13 +3,15 @@ from __future__ import annotations
 import asyncio
 import json
 import time
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from hashlib import md5
-from typing import Any, AsyncGenerator, Dict, List, Optional
+from typing import Any, AsyncGenerator, Awaitable, Callable, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import JSONResponse, StreamingResponse
-from sqlalchemy import select
+from sqlalchemy import select, text
+from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ...agent.orchestrator import (
@@ -24,8 +26,8 @@ from ...config import (
     is_planning_enabled,
     log_event,
 )
-from ...db.models import Message, Session
-from ...db.postgres import get_session
+from ...db.models import Message
+from ...db.postgres import async_session_factory, get_session
 from ...db.redis_client import get_client as get_redis_client
 from ...observability.prometheus_metrics import (
     cache_hits,
@@ -39,6 +41,8 @@ from ...observability.otel import get_current_trace_ids, get_tracer
 from ...observability.warehouse import record_outcome, update_session_analytics
 from ...rag.query_classifier import get_query_classifier
 from ..models import (
+    AgentStepEvent,
+    AgentStreamEvent,
     ChatRequest,
     ChatResponse,
     IntentClassifyRequest,
@@ -51,6 +55,7 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 
 # In-process fallback cache used when Redis is unavailable (e.g., in tests).
 _local_chat_cache: Dict[str, Dict[str, Any]] = {}
+StepEmitter = Callable[[str, str, Optional[str], str], Awaitable[None]]
 
 
 def _build_chat_cache_key(session_id: str, user_id: str, message: str, company: str) -> str:
@@ -70,22 +75,45 @@ async def _get_or_create_session(
     session_id: Optional[str],
     user_id: str,
     company: str,
-) -> Session:
+) -> "_SessionRef":
+    @dataclass
+    class _SessionRef:
+        id: str
+        company_id: Optional[str]
+
     if session_id:
-        existing = await db.get(Session, session_id)
+        existing_row = await db.execute(
+            text("SELECT id, company_id FROM sessions WHERE id = :session_id"),
+            {"session_id": session_id},
+        )
+        existing = existing_row.first()
         if existing:
             # Enforce per-session company consistency.
-            if existing.company_id and existing.company_id != company:
+            existing_company = existing.company_id
+            if existing_company and existing_company != company:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail="company does not match existing session",
                 )
-            return existing
+            return _SessionRef(id=str(existing.id), company_id=existing_company)
 
-    session = Session(user_id=user_id, company_id=company)
-    db.add(session)
-    await db.flush()
-    return session
+    try:
+        row = await db.execute(
+            text(
+                "INSERT INTO sessions (user_id, company_id) "
+                "VALUES (:user_id, :company_id) RETURNING id, company_id"
+            ),
+            {"user_id": user_id, "company_id": company},
+        )
+        created = row.first()
+        if not created:
+            raise RuntimeError("failed to create session")
+        await db.flush()
+        return _SessionRef(id=str(created.id), company_id=created.company_id)
+    except ProgrammingError as exc:
+        # Keep original error behavior when schema or permissions are invalid.
+        await db.rollback()
+        raise exc
 
 
 async def _load_message_history(db: AsyncSession, session_id: str) -> List[Dict[str, Any]]:
@@ -163,6 +191,7 @@ async def _run_agent_flow(
     request_id: str,
     *,
     use_cache: bool = True,
+    step_emitter: Optional[StepEmitter] = None,
 ) -> ChatResponse:
     start = time.perf_counter()
     span_ctx = None
@@ -225,6 +254,13 @@ async def _run_agent_flow(
         )
 
         if cache_hit and cached_payload is not None:
+            if step_emitter is not None:
+                await step_emitter(
+                    "cache_hit",
+                    "Using cached response",
+                    "Returning a recent answer for this same message",
+                    "info",
+                )
             request_status = "cache_hit"
             assistant_content = cached_payload.get("response", "")
             assistant_msg = Message(
@@ -272,11 +308,35 @@ async def _run_agent_flow(
         classifier_label: Optional[str] = None
         classifier_confidence: Optional[float] = None
         try:
+            if step_emitter is not None:
+                await step_emitter(
+                    "modernbert_start",
+                    "Classifying request with ModernBERT",
+                    "Deciding whether to run planner or direct response",
+                    "started",
+                )
             qc = get_query_classifier()
             qc_result = qc.classify(req.message)
             routing_query_type = "issue" if qc_result.is_issue else "non_issue"
             classifier_label = qc_result.label
             classifier_confidence = qc_result.confidence
+            if step_emitter is not None:
+                route_hint = (
+                    "Issue-related request detected"
+                    if routing_query_type == "issue"
+                    else "General support request detected"
+                )
+                confidence_text = (
+                    f"Confidence: {classifier_confidence:.2f}"
+                    if classifier_confidence is not None
+                    else "Confidence unavailable"
+                )
+                await step_emitter(
+                    "modernbert_done",
+                    route_hint,
+                    confidence_text,
+                    "completed",
+                )
         except Exception as exc:
             # Conservative fallback: treat unknown classification as issue.
             log_event(
@@ -286,6 +346,13 @@ async def _run_agent_flow(
                 session_id=str(session.id),
                 error=str(exc),
             )
+            if step_emitter is not None:
+                await step_emitter(
+                    "modernbert_failed",
+                    "Classifier unavailable, using safe fallback",
+                    "Continuing with issue-handling route",
+                    "failed",
+                )
         state["query_type"] = routing_query_type
         trace_id, _ = get_current_trace_ids()
         if trace_id:
@@ -293,6 +360,13 @@ async def _run_agent_flow(
         planning_enabled = is_planning_enabled()
         use_simple_chat = routing_query_type != "issue" or not planning_enabled
         route_name = "simple_chat" if use_simple_chat else "planner"
+        if step_emitter is not None:
+            await step_emitter(
+                "route_selected",
+                "Route selected",
+                "Using direct response flow" if use_simple_chat else "Using planner flow",
+                "info",
+            )
         log_event(
             "chat",
             "route_selected",
@@ -306,9 +380,9 @@ async def _run_agent_flow(
         )
         async with chat_request_trace(state):
             if use_simple_chat:
-                final_state = await run_simple_chat_agent(state)
+                final_state = await run_simple_chat_agent(state, step_emitter=step_emitter)
             else:
-                final_state = await run_orchestrated_agent(state)
+                final_state = await run_orchestrated_agent(state, step_emitter=step_emitter)
         response_text = final_state.get("final_response") or ""
 
         log_event(
@@ -528,7 +602,6 @@ async def chat_intent(
 async def chat_stream(
     req: ChatRequest,
     request: Request,
-    db: AsyncSession = Depends(get_session),
 ) -> StreamingResponse:
     if not req.message.strip():
         raise HTTPException(
@@ -539,9 +612,52 @@ async def chat_stream(
     request_id = getattr(request.state, "request_id", "")
 
     async def event_generator() -> AsyncGenerator[bytes, None]:
-        resp = await _run_agent_flow(db, req, request_id, use_cache=True)
-        data = json.dumps(resp.dict())
-        yield f"data: {data}\n\n".encode("utf-8")
+        events: asyncio.Queue[AgentStreamEvent] = asyncio.Queue()
+
+        async def emit_step(step_id: str, label: str, detail: Optional[str], status_name: str) -> None:
+            event = AgentStreamEvent(
+                type="step",
+                step=AgentStepEvent(
+                    id=step_id,
+                    label=label,
+                    detail=detail,
+                    status=status_name if status_name in {"started", "completed", "info", "failed"} else "info",
+                ),
+            )
+            await events.put(event)
+
+        async def run_flow_with_session() -> ChatResponse:
+            # Own the DB session inside this task. Passing the FastAPI request-scoped
+            # session into asyncio.create_task breaks SQLAlchemy async (MissingGreenlet).
+            async with async_session_factory() as session:
+                return await _run_agent_flow(
+                    session,
+                    req,
+                    request_id,
+                    use_cache=True,
+                    step_emitter=emit_step,
+                )
+
+        task = asyncio.create_task(run_flow_with_session())
+
+        while True:
+            if task.done() and events.empty():
+                break
+            try:
+                event = await asyncio.wait_for(events.get(), timeout=0.2)
+                yield f"event: {event.type}\ndata: {event.model_dump_json()}\n\n".encode("utf-8")
+            except asyncio.TimeoutError:
+                continue
+
+        try:
+            resp = await task
+        except Exception as exc:
+            error_event = AgentStreamEvent(type="error", error=f"Agent failed: {exc}")
+            yield f"event: error\ndata: {error_event.model_dump_json()}\n\n".encode("utf-8")
+            return
+
+        final_event = AgentStreamEvent(type="final", final=resp)
+        yield f"event: final\ndata: {final_event.model_dump_json()}\n\n".encode("utf-8")
 
     return StreamingResponse(
         event_generator(),

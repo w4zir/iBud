@@ -24,6 +24,11 @@ def is_planning_enabled() -> bool:
     return _is_truthy("AGENT_PLANNING_ENABLED", default=True)
 
 
+def is_human_escalation_enabled() -> bool:
+    """When True, human escalation (tickets / handoff) may run. Default: enabled."""
+    return _is_truthy("HUMAN_ESCALATION_ENABLED", default=True)
+
+
 def get_default_dataset() -> str:
     """Default dataset used when the client does not provide one."""
     return (os.getenv("DEFAULT_DATASET", "wixqa") or "wixqa").strip().lower()
